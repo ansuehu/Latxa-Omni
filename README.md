@@ -1,5 +1,5 @@
-# llama-omni-eng-pa
-A CKIP Lab project on applying [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) for english pronunciation assessment. This repository adapts the training code of Llama-Omni reproduced by [wntg](https://github.com/wntg/LLaMA-Omni).
+# Latxa-Omni
+Reproducing [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) with Latxa-3.1-8B-Instruct fro basque S2S. This repository adapts the training code of Llama-Omni reproduced by [wntg](https://github.com/wntg/LLaMA-Omni) and changed by [chiawen](https://github.com/chiawen0104/llama-omni-ckip_pa).
 
 ## Create Conda Environment
 1. Clone the repository.
