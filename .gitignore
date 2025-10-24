@@ -1,0 +1,10 @@
+.DS_Store
+/wandb
+__pycache__/
+*.pyc
+/saves
+models/
+/Llama*
+.slurm/
+Whisper*
+*.wav
