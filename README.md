@@ -7,24 +7,28 @@ A CKIP Lab project on applying [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni
    git clone https://github.com/ictnlp/LLaMA-Omni
    cd LLaMA-Omni
    ```
-2. Install packages.
+2. Ensure CUDA version 12.1 is loaded
+   ```
+   module load CUDA/12.1.1
+   ```
+4. Install packages.
    ```
    conda create -n llama-omni python=3.10
    conda activate llama-omni
    pip install pip==24.0
    pip install -e .
    ```
-3. Install `fairseq`.
+5. Change some packages versions:
    ```
-   git clone https://github.com/pytorch/fairseq
-   cd fairseq
-   pip install -e . --no-build-isolation
+   pip install wandb
+   pip install deepspeed==0.15.4
+   pip install accelerate==0.34.2
    ```
-4. Install `flash-attention` (v2).
+6. Install `flash-attention` (v2) for the right CUDA and Torch versions.
    ```
-   pip install flash-attn --no-build-isolation
+   pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.3/flash_attn-2.7.3+cu12torch2.1cxx11abiFALSE-cp310-cp310-linux_x86_64.whl
    ```
-   If the installation fails, please visit [here](https://github.com/Dao-AILab/flash-attention/releases) to download the wheel files, and then rerun the above command.
+   If the installation fails, please visit [here](https://github.com/Dao-AILab/flash-attention/releases) to see the wheel files, and then rerun the above command.
 
 ## Installation
 1. Clone this repository.
