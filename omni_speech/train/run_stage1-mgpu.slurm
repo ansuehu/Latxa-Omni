@@ -3,9 +3,9 @@
 #SBATCH --partition=hitz-exclusive
 #SBATCH --constraint=a100-sxm4
 #SBATCH --job-name=Latxa-Omni-Stage1 # Name of the process
-#SBATCH --gres=gpu:2 # Number of GPUs
+#SBATCH --gres=gpu:4 # Number of GPUs
 #SBATCH --cpus-per-gpu=2 # Number of CPU cores (2 is reasonable)
-#SBATCH --mem-per-gpu=16GB # RAM memory needed (8-16GB)
+#SBATCH --mem-per-gpu=64GB # RAM memory needed (8-16GB)
 #SBATCH --time=4-00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=asudupe008@ikasle.ehu.eus
@@ -22,6 +22,7 @@ export NCCL_P2P_DISABLE=0
 export WANDB_PROJECT='latxa-omni'
 
 GPUS_PER_NODE=$(echo $SLURM_JOB_GPUS | tr ',' '\n' | wc -l)
+GPUS_PER_NODE=4
 # python omni_speech/train/stage1.py \
 #     --model-path HiTZ/Latxa-Llama-3.1-8B-Instruct \
 #     --question-file /scratch/andoni.sudupe/Instruct_S2S_eu/data.json \
@@ -32,18 +33,22 @@ GPUS_PER_NODE=$(echo $SLURM_JOB_GPUS | tr ',' '\n' | wc -l)
 #     --output-folder $SLURM_JOB_ID \
 MODEL_PATH=/scratch/asudupe/models/Latxa-Llama-3.1-8B-Instruct
 MODEL_BASE=HiTZ/Latxa-Llama-3.1-8B-Instruct
-TRAIN_FILE=Ansu/Instruct_S2S_eu
+MODEL_NAME=Latxa-Llama-3.1-8B-Instruct
+# TRAIN_FILE=Ansu/Instruct_S2S_eu
+TRAIN_FILE=/scratch/asudupe/datasets/Instruct_S2S_eu
+EPOCHS=3
 
-BATCH_SIZE=32
-TRAIN_BATCH_SIZE=1
+BATCH_SIZE=64
+TRAIN_BATCH_SIZE=16
 
-torchrun --nproc_per_node=1 \
+torchrun --nproc_per_node=$GPUS_PER_NODE \
     "/home/asudupe/Latxa-Omni/omni_speech/train/stage1.py" \
     --model-path $MODEL_PATH \
     --model-base $MODEL_BASE \
     --train-file $TRAIN_FILE \
     --train_batch_size $TRAIN_BATCH_SIZE \
     --gradient_accumulation_steps $(($BATCH_SIZE / ($TRAIN_BATCH_SIZE * $GPUS_PER_NODE))) \
-    --output_dir saves/$MODEL_PATH/$SLURM_JOB_ID\_whisper_eu \
-    --run_name Proba_$MODEL_PATH\_$SLURM_JOB_ID\_whisper_eu \
+    --output_dir /scratch/asudupe/checkpoints/$MODEL_NAME/$SLURM_JOB_ID \
+    --num_train_epochs $EPOCHS \
+    --run_name Proba_$MODEL_NAME\_$SLURM_JOB_ID\_whisper_eu \
     

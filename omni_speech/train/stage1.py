@@ -158,8 +158,8 @@ def train_model(args):
     # validations = get_chunk(validations, args.num_chunks, args.chunk_idx )
     # eval_dl = create_data_loader(validations, tokenizer, model.config, args.input_type, args.mel_size)
 
-    # questions = load_from_disk(args.train_file)
-    questions = load_dataset(args.train_file)
+    questions = load_from_disk(args.train_file)
+    # questions = load_dataset(args.train_file)
     ds = questions['train']
     # ds = ds.cast_column("question_audio", Audio(decode=False))
 
@@ -190,29 +190,29 @@ def train_model(args):
         overwrite_output_dir=True,                  # 是否覆写 output_dir
         do_train=True,                              # 是否做训练
         do_eval=False,                               # 是否做评估
-        # per_device_train_batch_size=args.train_batch_size,                
-        # gradient_accumulation_steps=args.gradient_accumulation_steps,    # 梯度累计步大小，省显存，但小模型没必要，用 1 收敛比较快
-        # per_device_eval_batch_size=args.eval_batch_size,
-        # # eval_accumulation_steps=args.eval_accumulation_steps,                  
-        # gradient_checkpointing=True,
-        # gradient_checkpointing_kwargs={'use_reentrant':False},
-        # learning_rate=2e-5,
-        # weight_decay=0.01,
-        # adam_beta2=0.95,
-        # warmup_ratio=0.01,
-        # lr_scheduler_type='cosine',                 # 学习率调度策略，LLM 训练一般都用余弦
+        per_device_train_batch_size=args.train_batch_size,                
+        gradient_accumulation_steps=args.gradient_accumulation_steps,    # 梯度累计步大小，省显存，但小模型没必要，用 1 收敛比较快
+        per_device_eval_batch_size=args.eval_batch_size,
+        # eval_accumulation_steps=args.eval_accumulation_steps,                  
+        gradient_checkpointing=True,
+        gradient_checkpointing_kwargs={'use_reentrant':False},
+        learning_rate=2e-5,
+        weight_decay=0.01,
+        adam_beta2=0.95,
+        warmup_ratio=0.01,
+        lr_scheduler_type='cosine',                 # 学习率调度策略，LLM 训练一般都用余弦
         report_to="wandb",                          # 日志输出目标，不想用 wandb 可以设置为"none"
         run_name=args.run_name,    
         num_train_epochs=args.num_train_epochs,     
         # eval_strategy='epoch',
         logging_steps=1,                           # Print step interval
-        save_steps=1000,                            # Checkpoint save step interval
+        save_steps=250,                            # Checkpoint save step interval
         # metric_for_best_model='accuracy',
         # greater_is_better=True,
         save_total_limit=2,                         # output_dir 内留存的检查点最大数目
         seed=3407,                                  # 随机种子
-        # bf16=True,                            # 是否开启混合精度训练 (V100: False)   
-        # fp16 = False,
+        bf16=True,                            # 是否开启混合精度训练 (V100: False)   
+        fp16 = False,
         # attn_implementation = "sdpa",
         deepspeed="/home/asudupe/Latxa-Omni/omni_speech/train/ds_config.json",
     )

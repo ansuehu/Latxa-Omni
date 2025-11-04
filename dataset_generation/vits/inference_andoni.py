@@ -1,0 +1,297 @@
+# import matplotlib.pyplot as plt
+# import IPython.display as ipd
+
+import argparse
+import os
+import json
+# import math
+import torch
+# from torch import nn
+# from torch.nn import functional as F
+# from torch.utils.data import DataLoader
+import commons
+from utils import get_hparams_from_file, load_checkpoint
+# from data_utils import TextAudioLoader, TextAudioCollate, TextAudioSpeakerLoader, TextAudioSpeakerCollate
+import pyximport
+pyximport.install()
+
+from models import SynthesizerTrn
+from text.symbols import symbols
+from text.symbols_cast import symbols_cast
+from text import text_to_sequence
+
+from scipy.io.wavfile import write
+
+import soundfile as sf
+import speech
+import numpy as np
+import time
+# import sys
+from datasets import Dataset, Audio
+import multiprocess
+import re
+from functools import partial
+import logging
+import librosa
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
+
+hps_marina = get_hparams_from_file("/scratch/asudupe/models/vits/configs/sonora.json")
+
+net_g_marina = SynthesizerTrn(
+    len(symbols),
+    hps_marina.data.filter_length // 2 + 1,
+    hps_marina.train.segment_size // hps_marina.data.hop_length,
+    **hps_marina.model).cuda()
+_ = net_g_marina.eval()
+
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/marina_898.pth", net_g_marina, None)
+
+hps_alex = get_hparams_from_file("/scratch/asudupe/models/vits/configs/sonora.json")
+
+net_g_alex = SynthesizerTrn(
+    len(symbols),
+    hps_alex.data.filter_length // 2 + 1,
+    hps_alex.train.segment_size // hps_alex.data.hop_length,
+    **hps_alex.model).cuda()
+_ = net_g_alex.eval()
+
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/alex_864.pth", net_g_alex, None)
+
+hps_comb = get_hparams_from_file("/scratch/asudupe/models/vits/configs/multispeaker.json")
+
+net_g_comb = SynthesizerTrn(
+    len(symbols),
+    hps_comb.data.filter_length // 2 + 1,
+    hps_comb.train.segment_size // hps_comb.data.hop_length,
+    n_speakers=9,
+    **hps_comb.model).cuda()
+_ = net_g_comb.eval()
+
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/multispeaker_500000.pth", net_g_comb, None)
+
+speakers = {
+    0: "Aintzane",
+    1: "Jaione",
+    2: "Klara",
+    3: "Monika",
+    4: "Kiko",
+    5: "Inaki",
+    6: "Kepa",
+    7: "Pello",
+    8: "Xabier",
+    9: "Marina",
+    10: "Alex"
+}
+
+# hps_kristof = get_hparams_from_file("./configs/kristof_eu.json")
+
+# net_g_kristof = SynthesizerTrn(
+#     len(symbols),
+#     hps_kristof.data.filter_length // 2 + 1,
+#     hps_kristof.train.segment_size // hps_kristof.data.hop_length,
+#     **hps_kristof.model).cuda()
+# _ = net_g_kristof.eval()
+
+# _ = load_checkpoint("./checkpoints/kristof_1697.pth", net_g_kristof, None)
+
+def clean_text(text):
+    text = text.replace(':', ',')
+    text = text.replace(';', ',')
+    text = text.replace('(', ',')
+    text = text.replace(')', ',')
+    text = text.replace('"', '')
+    text = text.replace("'", '')
+    text = text.replace("“", '')
+    text = text.replace("”", '')
+    text = text.replace("ñ", 'n')
+    text = text.replace("á", 'a')
+    text = text.replace("é", 'e')
+    text = text.replace("í", 'i')
+    text = text.replace("ó", 'o')
+    text = text.replace("ú", 'u')
+    # print(output)
+    return text
+
+def getPhones(text, language):
+    #####################################
+    # Extracción fonética de las frases #
+    #####################################
+    text = text.lstrip()
+    cleaned_text = clean_text(text)
+    #phones = speech.modulo1y2(clean_text, mode='Spell', PhTSimple='y', language=language, keep_chars=None, verbose=True)
+    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./modulo1y2 -HDic=dict/eu_dic -Lang=eu -TxtMode=Spell -PhTSimple=y 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
+    phones = os.popen(command).read()
+    # print('phones:', phones)
+
+    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./modulo1y2 -HDic=dict/eu_dic -Lang=eu -TxtMode=Word -PhTSimple=n 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
+    checker = os.popen(command).read()
+    # print('checker:', checker)
+    #checker = speech.modulo1y2(clean_text, mode='Word', PhTSimple='n', language=language, keep_chars=None, verbose=False)
+    # phones = phones.replace(" ", "")
+    clp = ""
+    for p in range(len(phones)):
+        clp = clp + "".join(phones[p].split('-'))
+    #     # print(f"clp: {clp}, phone: {phones[p]}")
+    #     if p == len(phones) - 1:
+    #         clp = clp + ' | '
+    
+    slp = str(clp).split()
+    # print(slp)
+    if '?' in checker:
+        slp.append('?')
+    elif '!' in checker:
+        slp.append('!')
+    elif '.' in checker:
+        slp.append('.')
+    else:
+        slp.append('.')
+    
+    if checker[-2] == ':' or checker[-2] == ';':
+        slp.append('.')
+    phones = np.array(slp)
+
+    return phones
+
+def get_text(text, hps, language, path=False):
+    if not path:
+        text = getPhones(text, language)
+        # print(f'text: {text}')
+    text_norm = text_to_sequence(text, hps.data.text_cleaners, language, inference=not path)
+    if hps.data.add_blank:
+        text_norm = commons.intersperse(text_norm, 0)
+    text_norm = torch.LongTensor(text_norm)
+    return text_norm
+
+
+def infer_voice(question, voice, device): 
+    sid=0
+    if voice <= 8:
+        net_g = net_g_comb
+        hps = hps_comb
+        sid = voice
+    elif voice == 9:
+        net_g = net_g_marina
+        hps = hps_marina 
+    elif voice == 10:
+        net_g = net_g_alex
+        hps = hps_alex
+    # elif voice == 4:
+    #     net_g = net_g_nerea
+    #     hps = hps_nerea
+    # elif voice == 5:
+    #     net_g = net_g_miren
+    #     hps = hps_miren 
+    # elif voice == 6:
+    #     net_g = net_g_jon
+    #     hps = hps_jon         
+    else: 
+        print("Voice not recognized. Using default (marina).") 
+        net_g = net_g_marina 
+        hps = hps_marina 
+    
+    net_g.to(device)
+    stn_tst = get_text(question, hps, language='eu')
+    with torch.no_grad(): 
+        x_tst = stn_tst.to(device).unsqueeze(0)
+        x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).to(device)
+        sid = torch.LongTensor([sid]).to(device)
+        audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=.667, noise_scale_w=0.8, length_scale=1)[0][0,0].data.cpu().float().numpy() 
+        return audio
+    
+def process(ex, idx, rank, output_file_path): 
+    device = f"cuda:{(rank or 0) % torch.cuda.device_count()}"
+    question = ex['question']
+    answer = ex['answer'] 
+
+    # if len(question) > 450 or len(answer) > 1000:
+    #     print("Skipping long example.")
+    #     ex["question_audio"] = np.array([0.0], dtype=np.float32)
+    #     ex["answer_audio"] = np.array([0.0], dtype=np.float32)
+    #     return ex
+    random_voice = np.random.randint(0,11) 
+    output_path = os.path.dirname(output_file_path)
+    basename = os.path.basename(output_file_path)[:-4]
+    # print("Using voice:", random_voice)
+    spk = speakers[random_voice]
+    with open(output_file_path, 'a') as f:
+        try:
+            audio = infer_voice(question, random_voice, device)
+            # ex["answer_audio"] = Audio(np.array([0.0], dtype=np.float32))
+
+            audio = librosa.resample(audio, orig_sr=22050, target_sr=16000)
+            logging.warning(f'Audio len: {len(audio)}')
+            audio_path = f'{idx}_{ex["index"]}_{spk}.wav'
+            sf.write(os.path.join(output_path, basename, audio_path), audio, 16000)
+            ex["audio_path"]=audio_path
+            f.write(audio_path+"\n")
+        except Exception as e:
+            logging.warning(f"Error processing example: {e}")
+            audio_path = f'{idx}_{ex["index"]}_{spk}_error.wav'
+            f.write(audio_path+"\n")
+            ex["audio_path"]=audio_path
+        
+    return ex
+
+def main(): 
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--start", type=int)
+    parser.add_argument("--end", type=int)
+    parser.add_argument("--data_path", type=str)
+    parser.add_argument("--model_path", type=str)
+    # multiprocess.set_start_method("spawn")
+    
+    print('Starting!')
+    args = parser.parse_args()
+    multiprocess.set_start_method('forkserver', force=True)
+    
+    output_path = os.path.join(args.data_path, f'audios_{args.start}_{args.end}/')
+    os.makedirs(output_path, exist_ok=True)
+
+    output_file_path=os.path.join(args.data_path, f'audios_{args.start}_{args.end}.txt')
+    if os.path.exists(output_file_path):
+        with open(output_file_path, "rt") as f:
+            progress = sum(1 for _ in f)
+    else:
+        progress=0
+    
+    file_path = os.path.join(
+        args.data_path,
+        "VoiceAssistant-400K"
+        + f"_translated_{args.start}_{args.end}.jsonl",
+    )
+    # file_path = "/home/asudupe/Latxa-Omni/dataset_generation/translate_latxa/translation/clean.jsonl"
+    print('Opening the data!')
+    data = []
+    with open(file_path, "r") as f:
+        for line in f:
+            if line.strip():  # skip empty lines
+                data.append(json.loads(line))
+
+    # Create Hugging Face dataset
+    dataset = Dataset.from_list(data)
+    def remove_notes(example):
+        # Use regex to remove "Note:" and everything after
+        example["answer"] = re.sub(r'(?i)\bnote\s*:\s*.*', '', example["answer"]).strip()
+        return example
+
+    # Apply the cleaning function to the dataset
+    dataset = dataset.map(remove_notes)
+
+    dataset = dataset.select(range(progress, len(dataset), 1))
+
+    print(f'Starting the process! Dataset size: {len(dataset)}')
+
+    process_fn = partial(process, output_file_path=output_file_path)
+    # print(process(dataset[0], 0))
+    dataset = dataset.map(process_fn,
+                        with_indices=True,
+                        with_rank=True,
+                        num_proc=torch.cuda.device_count() * 4)
+
+    print('Finished!')
+    dataset.save_to_disk(f"/scratch/asudupe/datasets/VoiceAssistant-400K_eu_{args.start}")
+
+if __name__ == "__main__":
+    main()

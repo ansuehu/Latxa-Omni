@@ -1,0 +1,1 @@
+echo 'Oaxaca' | iconv -f UTF-8 -t ISO-8859-1 | /home/aholab/eva/prj/htts/main/modulo1y2/modulo1y2 -Lang=es -HDic=es_dic_mx

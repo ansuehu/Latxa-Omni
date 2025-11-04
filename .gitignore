@@ -8,3 +8,4 @@ models/
 .slurm/
 Whisper*
 *.wav
+audioak/
