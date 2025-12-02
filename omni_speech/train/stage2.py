@@ -5,20 +5,19 @@ import os
 import torch
 from torch.utils.data import Dataset, DataLoader
 import whisper
+import numpy as np
 # import ipdb  
 import math
 import json
-from tqdm import tqdm
 from omni_speech.conversation import conv_templates
 from omni_speech.model.builder import load_pretrained_model,create_model
 from omni_speech.datasets.preprocess import tokenizer_speech_token
 # from transformers import DataCollatorForLanguageModeling
-from transformers import TrainingArguments
-from transformers import Trainer
+from transformers import TrainingArguments, Trainer
+from datasets import load_from_disk
 from tqdm import tqdm
 import torch.optim as optim
 # from memory_profiler import profile
-import torch.optim as optim
 # from transformers import DataCollatorForSeq2Seq
 import os
 from torch.nn.utils.rnn import pad_sequence
@@ -44,13 +43,13 @@ def collate_fn(batch_data):
     return ret
 
 class CustomDataset(Dataset):
-    def __init__(self, questions, responses, tokenizer, model_config, input_type, mel_size):
-        self.questions = questions
-        self.responses = responses
+    def __init__(self, dataset, tokenizer, model_config, input_type, mel_size, data_root):
+        self.dataset = dataset
         self.tokenizer = tokenizer
         self.model_config = model_config
         self.input_type = input_type
         self.mel_size = mel_size
+        self.data_root = data_root
 
     
     # def get_tgt_unit(self, file_path):
@@ -70,22 +69,20 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, index):
         #tgt_unit = torch.tensor(self.tgt_unit[index])
-        responses = self.responses[index]
-        prediction = responses['prediction']
-        tgt_unit = responses['prediction_units']
-        tgt_unit = torch.tensor([int(item) for item in tgt_unit.split(' ')])
-        item = self.questions[index]
-        speech_file = item["speech"]
-        qs = item["conversations"][0]["value"]
-        ans = item["conversations"][1]["value"]
+        item = self.dataset[index]
+        qs = "<speech>\nPlease directly answer the questions in the user's speech."
+        re = item["answer"]
         # llm_gt = self.llm_gt[index]
         conv = conv_templates[args.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)
-        conv.append_message(conv.roles[1], prediction)
+        conv.append_message(conv.roles[1], re)
         prompt = conv.get_prompt()
-        
 
-        speech = whisper.load_audio(speech_file)
+        tgt_unit = np.load(item['answer_token'])
+        tgt_unit = torch.tensor(tgt_unit)
+        speech_file = item["question_audio"]
+
+        speech = whisper.load_audio(os.path.join(self.data_root, speech_file))
         if self.input_type == "raw":
             speech = torch.from_numpy(speech)
             if self.model_config.speech_normalize:
@@ -113,13 +110,13 @@ class CustomDataset(Dataset):
         # ret=dict(input_ids=input_ids,labels=None, speech=speech, tgt_units=tgt_unit ,speech_lengths=torch.LongTensor([speech.shape[0]]))
         return ret
     def __len__(self):
-        return len(self.questions)
+        return len(self.dataset)
     
 # DataLoader
-def create_data_loader(questions, responses,tokenizer, model_config, input_type, mel_size, batch_size=1, num_workers=1):
+def create_data_loader(dataset, tokenizer, model_config, input_type, mel_size, data_root, batch_size=1, num_workers=1):
     assert batch_size == 1, "batch_size must be 1"
     
-    dataset = CustomDataset(questions,responses, tokenizer, model_config, input_type, mel_size)
+    dataset = CustomDataset(dataset, tokenizer, model_config, input_type, mel_size, data_root)
     #data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, collate_fn=collate_fn)
     return dataset
 
@@ -136,39 +133,47 @@ def get_chunk(lst, n, k):
 
 
 def train_model(args):
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'     # 设置 device，能用 cuda 就用 cuda，苹果 M 系列可以用 mps
-    #local_rank = torch.distributed.get_rank()
-    #torch.cuda.set_device(local_rank)
-    #device = torch.device(f'cuda:{local_rank}')
-    model_path = os.path.expanduser(args.model_path)
-    tokenizer, model, context_len = create_model(model_path, args.model_base, device=device, is_lora=args.is_lora, s2s=args.s2s)
+    if 'WORLD_SIZE' in os.environ:
+        import torch.distributed as dist
+        dist.init_process_group(backend='nccl')
+        local_rank = int(os.environ['LOCAL_RANK'])
+        torch.cuda.set_device(local_rank)
+        device = f'cuda:{local_rank}'
+    else:
+        device = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+    tokenizer, model, context_len = create_model(args.model_path, args.model_base, device=device, is_lora=args.is_lora, s2s=args.s2s)
 
     # train file
-    train_questions = json.load(open(os.path.expanduser(args.train_question_file), "r"))
-    train_questions = get_chunk(train_questions, args.num_chunks, args.chunk_idx) #chunk 1 chunk-idx 0 取list中的多少进行测试
-    with open(os.path.expanduser(args.train_answer_file), "r") as f:
-        train_responses = f.readlines()
-        for i in range(len(train_responses)):
-            train_responses[i] = json.loads(train_responses[i])
+    # train_questions = json.load(open(os.path.expanduser(args.train_question_file), "r"))
+    # train_questions = get_chunk(train_questions, args.num_chunks, args.chunk_idx) #chunk 1 chunk-idx 0 取list中的多少进行测试
+    # with open(os.path.expanduser(args.train_answer_file), "r") as f:
+    #     train_responses = f.readlines()
+    #     for i in range(len(train_responses)):
+    #         train_responses[i] = json.loads(train_responses[i])
     # data_loader = create_data_loader(questions,responses, tokenizer, model.config, args.input_type, args.mel_size)
-    train_dl = create_data_loader(train_questions, train_responses, tokenizer, model.config, args.input_type, args.mel_size)
+    ds = load_from_disk(args.train_file)
 
-    # valid file
-    eval_questions = json.load(open(os.path.expanduser(args.valid_question_file), "r"))
-    eval_questions = get_chunk(eval_questions, args.num_chunks, args.chunk_idx) #chunk 1 chunk-idx 0 取list中的多少进行测试
-    with open(os.path.expanduser(args.valid_answer_file), "r") as f:
-        eval_responses = f.readlines()
-        for i in range(len(eval_responses)):
-            eval_responses[i] = json.loads(eval_responses[i])
-    eval_dl = create_data_loader(eval_questions, eval_responses, tokenizer, model.config, args.input_type, args.mel_size)
+    train_dl = create_data_loader(ds['train'], tokenizer, model.config, args.input_type, args.mel_size, args.data_root)
+    eval_dl = create_data_loader(ds['test'], tokenizer, model.config, args.input_type, args.mel_size, args.data_root)
 
-    
     # optimizer = optim.Adam(model.parameters(), lr=0.00001)
     # 学习率变大
-    optimizer = optim.Adam(model.speech_generator.parameters() , lr=1e-4)
+    # optimizer = optim.Adam(model.speech_generator.parameters() , lr=1e-4)
     # optimizer = optim.SGD(model.parameters(), lr=0.001)
+    for _, param in model.named_parameters():
+        param.requires_grad = False
+
+    # Unfreeze only the generator
+    for _, param in model.speech_generator.named_parameters():
+        param.requires_grad = True
 
 
+    def count_trainable_params(model):
+        return sum(p.numel() for p in model.parameters() if p.requires_grad)
+
+    print("Total parameters:", sum(p.numel() for p in model.parameters()))
+    print("Trainable parameters:", count_trainable_params(model))
 
     # 初始化Trainer
     model.train()
@@ -176,7 +181,7 @@ def train_model(args):
         output_dir=args.output_dir,                         # 输出路径，包括模型检查点、中间文件等
         overwrite_output_dir=True,                  # 是否覆写 output_dir
         do_train=True,                              # 是否做训练
-        do_eval=True,                               # 是否做评估
+        do_eval=False,                               # 是否做评估
         per_device_train_batch_size=args.train_batch_size,                
         gradient_accumulation_steps=args.gradient_accumulation_steps,    # 梯度累计步大小，省显存，但小模型没必要，用 1 收敛比较快
         per_device_eval_batch_size=args.eval_batch_size,
@@ -189,7 +194,7 @@ def train_model(args):
         bf16=True,        
         fp16=False,   
         half_precision_backend='cuda_amp',
-        # logging_steps=1,                           # 打印步骤间隔
+        logging_steps=1,                           # 打印步骤间隔
         report_to='wandb',
         run_name=args.run_name,                             # 日志输出目标，不想用 wandb 可以设置为 None
         num_train_epochs=args.num_train_epochs,                         # 训练轮数，2 ~ 3 即可
@@ -198,9 +203,10 @@ def train_model(args):
         seed=3407,                                  # 随机种子
         max_grad_norm=1.0,
         save_strategy='epoch',
-        eval_strategy='epoch',
-        logging_strategy='epoch',
-        load_best_model_at_end=True,
+        # eval_strategy='epoch',
+        logging_strategy='steps',
+        # load_best_model_at_end=True,
+        deepspeed="/home/asudupe/Latxa-Omni/omni_speech/train/ds_config_stage2.json",
     )
     tokenizer.pad_token = tokenizer.eos_token
     trainer = Trainer(
@@ -210,7 +216,7 @@ def train_model(args):
         train_dataset=train_dl,
         eval_dataset=eval_dl,
         data_collator=collate_fn,
-        optimizers=(optimizer, None)
+        # optimizers=(optimizer, None)
     )
     # with torch.no_grad:
     trainer.train()
@@ -224,10 +230,9 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, default="Llama-3.1-8B-Omni")
     parser.add_argument("--model-base", type=str, default='Llama-3.1-8B-Omni')
     # parser.add_argument("--question-file", type=str, default="./omni_speech/infer/examples/question.json")
-    parser.add_argument("--train-question-file", type=str, default="omni_speech/infer/gen_answer_data/question.json")
-    parser.add_argument("--train-answer-file", type=str, default="omni_speech/infer/gen_answer_data/answer.json")
-    parser.add_argument("--valid-question-file", type=str)
-    parser.add_argument("--valid-answer-file", type=str)
+    parser.add_argument("--train-file", type=str, default="omni_speech/infer/gen_answer_data/question.json")
+    parser.add_argument("--data-root", type=str)
+    parser.add_argument("--valid-file", type=str, default=None)
     parser.add_argument("--conv-mode", type=str, default="llama_3")
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)

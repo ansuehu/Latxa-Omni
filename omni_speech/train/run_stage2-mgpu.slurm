@@ -2,15 +2,15 @@
 #SBATCH --account=hitz-exclusive 
 #SBATCH --partition=hitz-exclusive
 #SBATCH --constraint=a100-sxm4
-#SBATCH --job-name=Latxa-Omni-Stage1 # Name of the process
+#SBATCH --job-name=Latxa-Omni-Stage2 # Name of the process
 #SBATCH --gres=gpu:4 # Number of GPUs
 #SBATCH --cpus-per-gpu=2 # Number of CPU cores (2 is reasonable)
 #SBATCH --mem-per-gpu=64GB # RAM memory needed (8-16GB)
 #SBATCH --time=4-00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=asudupe008@ikasle.ehu.eus
-#SBATCH --output=.slurm/Latxa-Omni-Stage1-1epoch.out.log
-#SBATCH --error=.slurm/Latxa-Omni-Stage1-1epoch.err.log
+#SBATCH --output=.slurm/Latxa-Omni-Stage2.out.log
+#SBATCH --error=.slurm/Latxa-Omni-Stage2.err.log
 #SBATCH --chdir=/home/asudupe/Latxa-Omni
 
 export SSL_CERT_FILE=~/cacert.pem
@@ -19,7 +19,7 @@ export TORCH_NCCL_BLOCKING_WAIT=1
 export NCCL_TIMEOUT=1800
 export NCCL_IB_DISABLE=0
 export NCCL_P2P_DISABLE=0
-export WANDB_PROJECT='latxa-omni'
+export WANDB_PROJECT='latxa-omni-2'
 
 GPUS_PER_NODE=$(echo $SLURM_JOB_GPUS | tr ',' '\n' | wc -l)
 GPUS_PER_NODE=4
@@ -32,27 +32,34 @@ GPUS_PER_NODE=4
 #     --conv-mode llama_3 \
 #     --output-folder $SLURM_JOB_ID \
 # MODEL_PATH=/scratch/asudupe/models/Latxa-Llama-3.1-8B-Instruct
-MODEL_PATH=/scratch/asudupe/checkpoints/Latxa-Llama-3.1-8B-Instruct/3813783/checkpoint-20976
+MODEL_PATH=/scratch/asudupe/checkpoints/Latxa-Llama-3.1-8B-Instruct/stage1/best/checkpoint-20976
 MODEL_BASE=HiTZ/Latxa-Llama-3.1-8B-Instruct
 MODEL_NAME=Latxa-Llama-3.1-8B-Instruct
 # TRAIN_FILE=Ansu/Instruct_S2S_eu
-TRAIN_FILE=/scratch/asudupe/datasets/VoiceAssistant-400K_eu/dataset
+TRAIN_FILE=/scratch/asudupe/datasets/VoiceAssistant-400K_eu/dataset_with_token_paths
 DATA_ROOT=/scratch/asudupe/datasets/VoiceAssistant-400K_eu
-EPOCHS=1
+EPOCHS=3
 
 BATCH_SIZE=64
 TRAIN_BATCH_SIZE=16
 
+echo $MODEL_PATH
+echo $MODEL_NAME
+echo $MODEL_BASE
+echo $TRAIN_FILE
+echo $DATA_ROOT
+echo $EPOCHS
+
 torchrun --nproc_per_node=$GPUS_PER_NODE \
     --rdzv_endpoint=localhost:29400 \
-    "/home/asudupe/Latxa-Omni/omni_speech/train/stage1.py" \
+    "/home/asudupe/Latxa-Omni/omni_speech/train/stage2.py" \
     --model-path $MODEL_PATH \
     --model-base $MODEL_BASE \
     --train-file $TRAIN_FILE \
     --data-root $DATA_ROOT \
     --train_batch_size $TRAIN_BATCH_SIZE \
     --gradient_accumulation_steps $(($BATCH_SIZE / ($TRAIN_BATCH_SIZE * $GPUS_PER_NODE))) \
-    --output_dir /scratch/asudupe/checkpoints/$MODEL_NAME/stage1/$SLURM_JOB_ID \
+    --output_dir /scratch/asudupe/checkpoints/$MODEL_NAME/stage2/$SLURM_JOB_ID \
     --num_train_epochs $EPOCHS \
     --run_name $MODEL_NAME\_VoiceAssistant\_$SLURM_JOB_ID\_whisper_eu \
     

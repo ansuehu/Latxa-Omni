@@ -95,6 +95,8 @@ speakers = {
 # _ = net_g_kristof.eval()
 
 # _ = load_checkpoint("./checkpoints/kristof_1697.pth", net_g_kristof, None)
+def sanitize(s):
+    return "".join(c if ord(c) < 128 else "_" for c in s)
 
 def clean_text(text):
     text = text.replace(':', ',')
@@ -119,6 +121,7 @@ def getPhones(text, language):
     # Extracción fonética de las frases #
     #####################################
     text = text.lstrip()
+    text = sanitize(text)
     cleaned_text = clean_text(text)
     #phones = speech.modulo1y2(clean_text, mode='Spell', PhTSimple='y', language=language, keep_chars=None, verbose=True)
     command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./modulo1y2 -HDic=dict/eu_dic -Lang=eu -TxtMode=Spell -PhTSimple=y 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
@@ -200,7 +203,7 @@ def infer_voice(question, voice, device):
         audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=.667, noise_scale_w=0.8, length_scale=1)[0][0,0].data.cpu().float().numpy() 
         return audio
     
-def process(ex, idx, rank, output_file_path): 
+def process(ex, rank): 
     device = f"cuda:{(rank or 0) % torch.cuda.device_count()}"
     question = ex['question']
     answer = ex['answer'] 
@@ -211,26 +214,43 @@ def process(ex, idx, rank, output_file_path):
     #     ex["answer_audio"] = np.array([0.0], dtype=np.float32)
     #     return ex
     random_voice = np.random.randint(0,11) 
-    output_path = os.path.dirname(output_file_path)
-    basename = os.path.basename(output_file_path)[:-4]
+
     # print("Using voice:", random_voice)
     spk = speakers[random_voice]
-    with open(output_file_path, 'a') as f:
-        try:
-            audio = infer_voice(question, random_voice, device)
-            # ex["answer_audio"] = Audio(np.array([0.0], dtype=np.float32))
+    # with open(output_file_path, 'a') as f:
+    try:
+        audio_question = infer_voice(question, random_voice, device)
 
-            audio = librosa.resample(audio, orig_sr=22050, target_sr=16000)
-            logging.warning(f'Audio len: {len(audio)}')
-            audio_path = f'{idx}_{ex["index"]}_{spk}.wav'
-            sf.write(os.path.join(output_path, basename, audio_path), audio, 16000)
-            ex["audio_path"]=audio_path
-            f.write(audio_path+"\n")
-        except Exception as e:
-            logging.warning(f"Error processing example: {e}")
-            audio_path = f'{idx}_{ex["index"]}_{spk}_error.wav'
-            f.write(audio_path+"\n")
-            ex["audio_path"]=audio_path
+        audio_question = librosa.resample(audio_question, orig_sr=22050, target_sr=16000)
+        ex["question_audio"] = audio_question
+        ex['speaker'] = spk
+
+        # logging.warning(f'Audio len: {len(audio)}')
+        # audio_path_question = f'question_{idx}_{ex["index"]}_{spk}.wav'
+        # sf.write(os.path.join("/scratch/asudupe/datasets/translation/audioak", audio_path_question), audio_question, 16000)
+        # ex["audio_path_question"]=audio_path_question
+        # f.write(audio_path+"\n")
+    except Exception as e:
+        logging.warning(f"Error processing example: {e}")
+        # audio_path = f'question_{idx}_{ex["index"]}_{spk}_error.wav'
+        ex['question_audio'] = np.array([0.0], dtype=np.float32)
+        ex['speaker'] = 'error'
+        # ex["audio_path_question"]=audio_path
+
+    try:
+        audio_answer = infer_voice(answer, 0, device)
+        audio_answer = librosa.resample(audio_answer, orig_sr=22050, target_sr=16000)
+        # audio_path_answer = f'answer_{idx}_{ex["index"]}.wav'
+        # sf.write(os.path.join("/scratch/asudupe/datasets/translation/audioak", audio_path_answer), audio_answer, 16000)
+        ex["answer_audio"] = audio_answer
+        # ex["audio_path_answer"]=audio_path_answer
+
+    except:
+        logging.warning(f"Error processing example: {e}")
+        ex["answer_audio"] = np.array([0.0], dtype=np.float32)
+        # audio_path = f'answer_{idx}_{ex["index"]}_error.wav'
+        # ex["audio_path_answer"]=audio_path
+
         
     return ex
 
@@ -262,12 +282,18 @@ def main():
         + f"_translated_{args.start}_{args.end}.jsonl",
     )
     # file_path = "/home/asudupe/Latxa-Omni/dataset_generation/translate_latxa/translation/clean.jsonl"
-    print('Opening the data!')
+    print(f'Opening the data in {file_path}')
     data = []
     with open(file_path, "r") as f:
-        for line in f:
+        for i, line in enumerate(f):
+            if i == 1:
+                continue
             if line.strip():  # skip empty lines
-                data.append(json.loads(line))
+                try:
+                    data.append(json.loads(line))
+                except:
+                    print(line)
+                    break
 
     # Create Hugging Face dataset
     dataset = Dataset.from_list(data)
@@ -283,15 +309,14 @@ def main():
 
     print(f'Starting the process! Dataset size: {len(dataset)}')
 
-    process_fn = partial(process, output_file_path=output_file_path)
+    # process_fn = partial(process, output_file_path=output_file_path)
     # print(process(dataset[0], 0))
-    dataset = dataset.map(process_fn,
-                        with_indices=True,
+    dataset = dataset.map(process,
                         with_rank=True,
-                        num_proc=torch.cuda.device_count() * 4)
+                        num_proc=torch.cuda.device_count() * 24)
 
     print('Finished!')
-    dataset.save_to_disk(f"/scratch/asudupe/datasets/VoiceAssistant-400K_eu_{args.start}")
+    dataset.save_to_disk(f"/scratch/asudupe/datasets/VoiceAssistant-400K_eu_{args.start}_{args.end}")
 
 if __name__ == "__main__":
     main()
