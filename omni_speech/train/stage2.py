@@ -189,7 +189,7 @@ def train_model(args):
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={'use_reentrant':False},
         # eval_steps=100,                            # 评估步骤间隔
-        learning_rate=2e-5,                         # 学习率大小
+        learning_rate=2e-4,                         # 学习率大小
         lr_scheduler_type='cosine',                 # 学习率调度策略，LLM 训练一般都用余弦
         bf16=True,        
         fp16=False,   

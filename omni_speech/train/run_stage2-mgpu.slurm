@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-#SBATCH --account=hitz-exclusive 
-#SBATCH --partition=hitz-exclusive
+#SBATCH --qos=xlong
 #SBATCH --constraint=a100-sxm4
 #SBATCH --job-name=Latxa-Omni-Stage2 # Name of the process
 #SBATCH --gres=gpu:4 # Number of GPUs
 #SBATCH --cpus-per-gpu=2 # Number of CPU cores (2 is reasonable)
 #SBATCH --mem-per-gpu=64GB # RAM memory needed (8-16GB)
-#SBATCH --time=4-00:00
+#SBATCH --time=8-00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=asudupe008@ikasle.ehu.eus
 #SBATCH --output=.slurm/Latxa-Omni-Stage2.out.log
@@ -41,7 +40,7 @@ DATA_ROOT=/scratch/asudupe/datasets/VoiceAssistant-400K_eu
 EPOCHS=3
 
 BATCH_SIZE=64
-TRAIN_BATCH_SIZE=16
+TRAIN_BATCH_SIZE=8
 
 echo $MODEL_PATH
 echo $MODEL_NAME
@@ -49,6 +48,8 @@ echo $MODEL_BASE
 echo $TRAIN_FILE
 echo $DATA_ROOT
 echo $EPOCHS
+
+latxa
 
 torchrun --nproc_per_node=$GPUS_PER_NODE \
     --rdzv_endpoint=localhost:29400 \
