@@ -25,7 +25,7 @@
       "type": "WarmupCosineLR",
       "params": {
         "warmup_min_ratio": 0,
-        "warmup_num_steps": 154,
+        "warmup_num_steps": 70,
         "cos_min_ratio": 2e-5,
         "total_num_steps": "auto"
       }

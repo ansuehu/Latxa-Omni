@@ -2,7 +2,7 @@
 SLURM_DIR=$(pwd)"/.slurm"
 cd /home/asudupe/Latxa-Omni/dataset_generation/vits
 SPLITS=(
-    # "0 100000"
+    "0 100000"
     "100000 200000"
     "200000 300000"
     "300000 500000"
@@ -11,8 +11,10 @@ SPLITS=(
 DATA_PATH=/scratch/asudupe/datasets/translation/
 MODEL_PATH=/scratch/asudupe/models/vits/
 
+latxa-txat
 
-for i in "${!SPLITS[@]}"; do
+# for i in "${!SPLITS[@]}"; do
+for i in 0; do
     SPLIT=(${SPLITS[$i]})
     echo "Starting translation for split: ${SPLIT}"
     SLURM_ARGS=$(
@@ -22,7 +24,7 @@ for i in "${!SPLITS[@]}"; do
             --job-name="speech_synthesis_${i}" \
             --mem=64G \
             --gres=gpu:1\
-            --cpus-per-task=2 \
+            --cpus-per-gpu=24 \
             --constraint=a100-sxm4 \
         --time=2-00:00:00 \
             --mail-user=andoni.sudupe@ehu.eus \

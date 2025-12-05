@@ -1,6 +1,8 @@
 # import matplotlib.pyplot as plt
 # import IPython.display as ipd
 import logging
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
@@ -93,9 +95,10 @@ model = HubertModel.from_pretrained(model_name)
 model.eval()
 model.cuda()
 
-kmeans = joblib.load("/scratch/andoni.sudupe/models/kmeans/basque_hubert_k1000_L9.pt")
+kmeans = joblib.load("/scratch/asudupe/models/kmeans/basque_hubert_k1000_L9.pt")
+# hps_kristof = get_hparams_from_file("./configs/kristof_eu.json")
 
-DATASET_PATH='/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu'
+DATASET_PATH='/scratch/asudupe/datasets/VoiceAssistant-400K_eu'
 
 def sanitize(s):
     return "".join(c if ord(c) < 128 else "_" for c in s)
@@ -132,6 +135,7 @@ def getPhones(text, language):
     # print('phones:', phones)
 
     command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./dataset_generation/vits/modulo1y2 -HDic=./dataset_generation/vits/dict/eu_dic -Lang=eu -TxtMode=Word -PhTSimple=n 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
+
     checker = os.popen(command).read()
     # print('checker:', checker)
     #checker = speech.modulo1y2(clean_text, mode='Word', PhTSimple='n', language=language, keep_chars=None, verbose=False)
@@ -267,8 +271,6 @@ def process(ex, rank):
     device = f"cuda:{(rank or 0) % torch.cuda.device_count()}"
     # question = ex['question']
     answer = ex['answer'] 
-    # print(answer)
-
     # if len(question) > 450 or len(answer) > 1000:
     #     print("Skipping long example.")
     #     ex["question_audio"] = np.array([0.0], dtype=np.float32)
@@ -315,6 +317,7 @@ def process(ex, rank):
 
         # logging.warning(f"Error processing example: {e}")
         # logging.info(ex['answer_token'])
+
         ex["answer_token"] = 'error'
         # audio_path = f'answer_{idx}_{ex["index"]}_error.wav'
         # ex["audio_path_answer"]=audio_path
@@ -383,7 +386,7 @@ def main():
 
     # process_fn = partial(process, output_file_path=output_file_path)
     # print(process(dataset[0], 0))
-    data = load_from_disk("/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu/dataset_with_token_paths")
+    data = load_from_disk("/scratch/asudupe/datasets/VoiceAssistant-400K_eu/dataset_with_token_paths")
 
 
     dataset = data['train']
@@ -401,7 +404,6 @@ def main():
     dataset = dataset.map(process,
                         with_rank=True,
                         num_proc=4)
-
     dataset = data['test']
     n = len(dataset)
 

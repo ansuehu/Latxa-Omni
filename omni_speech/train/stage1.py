@@ -53,12 +53,13 @@ def collate_fn(batch):
     return {"input_ids":input_ids,"labels":labels, "speech":speech_tensors, "speech_lengths":speech_lengths}
 
 class CustomDataset(Dataset):
-    def __init__(self, questions, tokenizer, model_config, input_type, mel_size):
+    def __init__(self, questions, tokenizer, model_config, input_type, mel_size, data_root):
         self.questions = questions
         self.tokenizer = tokenizer
         self.model_config = model_config
         self.input_type = input_type
         self.mel_size = mel_size
+        self.data_root = data_root
 
     def __getitem__(self, index):
         item = self.questions[index]
@@ -72,9 +73,12 @@ class CustomDataset(Dataset):
         # speech = speech.double()
         # print(speech)
 
-        audio = torch.tensor(item['question_audio'])
-        speech = Resample(orig_freq=22050, new_freq=16000)(audio)
+        # audio = torch.tensor(item['question_audio'])
+        # speech = Resample(orig_freq=22050, new_freq=16000)(audio)
         # speech = Resample(orig_freq=sr, new_freq=16000)(speech)
+
+        speech_file = item['question_audio']
+        speech = whisper.load_audio(os.path.join(self.data_root, speech_file))
         qs = "<speech>\nPlease directly answer the questions in the user's speech."
         re = item["answer"]
 
@@ -98,10 +102,10 @@ class CustomDataset(Dataset):
         return len(self.questions)
     
 # DataLoader
-def create_data_loader(questions, tokenizer, model_config, input_type, mel_size, batch_size=2, num_workers=1):
+def create_data_loader(questions, tokenizer, model_config, input_type, mel_size, data_root, batch_size=2, num_workers=1):
     # assert batch_size == 1, "batch_size must be 1"
     
-    dataset = CustomDataset(questions, tokenizer, model_config, input_type, mel_size)
+    dataset = CustomDataset(questions, tokenizer, model_config, input_type, mel_size, data_root)
     #data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, collate_fn=collate_fn)
     return dataset
 
@@ -158,9 +162,8 @@ def train_model(args):
     # validations = get_chunk(validations, args.num_chunks, args.chunk_idx )
     # eval_dl = create_data_loader(validations, tokenizer, model.config, args.input_type, args.mel_size)
 
-    questions = load_from_disk(args.train_file)
+    ds = load_from_disk(args.train_file)
     # questions = load_dataset(args.train_file)
-    ds = questions['train']
     # ds = ds.cast_column("question_audio", Audio(decode=False))
 
     # def decode_audio(example):
@@ -179,9 +182,8 @@ def train_model(args):
 
     # ds = ds.map(decode_audio)
 
-    ds = ds.train_test_split(test_size=0.01)
-    train_dl = create_data_loader(ds['train'], tokenizer, model.config, args.input_type, args.mel_size)
-    eval_dl = create_data_loader(ds['test'], tokenizer, model.config, args.input_type, args.mel_size)
+    train_dl = create_data_loader(ds['train'], tokenizer, model.config, args.input_type, args.mel_size, args.data_root)
+    eval_dl = create_data_loader(ds['test'], tokenizer, model.config, args.input_type, args.mel_size, args.data_root)
 
     # from transformers import Trainer, TrainingArguments
     # 初始化Trainer
@@ -192,7 +194,7 @@ def train_model(args):
         do_eval=False,                               # 是否做评估
         per_device_train_batch_size=args.train_batch_size,                
         gradient_accumulation_steps=args.gradient_accumulation_steps,    # 梯度累计步大小，省显存，但小模型没必要，用 1 收敛比较快
-        per_device_eval_batch_size=args.eval_batch_size,
+        # per_device_eval_batch_size=args.eval_batch_size,
         # eval_accumulation_steps=args.eval_accumulation_steps,                  
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={'use_reentrant':False},
@@ -240,6 +242,7 @@ if __name__ == "__main__":
     parser.add_argument("--model-path", type=str, default="facebook/opt-350m")
     parser.add_argument("--model-base", type=str, default=None)
     parser.add_argument("--train-file", type=str)
+    parser.add_argument("--data-root", type=str)
     parser.add_argument("--valid-file", type=str, default=None)
     parser.add_argument("--conv-mode", type=str, default="llama_3")
     parser.add_argument("--num-chunks", type=int, default=1)
