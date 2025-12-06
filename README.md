@@ -20,10 +20,7 @@ Reproducing [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) with Latxa-3.1-8B
    ```
 5. Change some packages versions:
    ```
-   pip install transformers==4.45.0
-   pip install deepspeed==0.15.4
-   pip install accelerate==0.34.2
-   pip install wandb
+   pip install transformers==4.45.0 deepspeed==0.15.4 accelerate==0.34.2 wandb datasets ffmpeg
    ```
 6. Install `flash-attention` (v2) for the right CUDA and Torch versions.
    ```
