@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --qos=xlong
-#SBATCH --constraint=a100-sxm4
+#SBATCH --partition=gpu-H100
 #SBATCH --job-name=Latxa-Omni-Stage2 # Name of the process
 #SBATCH --gres=gpu:4 # Number of GPUs
 #SBATCH --cpus-per-gpu=2 # Number of CPU cores (2 is reasonable)
@@ -10,7 +9,7 @@
 #SBATCH --mail-user=asudupe008@ikasle.ehu.eus
 #SBATCH --output=.slurm/Latxa-Omni-Stage2.out.log
 #SBATCH --error=.slurm/Latxa-Omni-Stage2.err.log
-#SBATCH --chdir=/home/asudupe/Latxa-Omni
+#SBATCH --chdir=/home/andoni.sudupe/Latxa-Omni
 
 export SSL_CERT_FILE=~/cacert.pem
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -30,13 +29,13 @@ GPUS_PER_NODE=4
 #     --temperature 0 \
 #     --conv-mode llama_3 \
 #     --output-folder $SLURM_JOB_ID \
-# MODEL_PATH=/scratch/asudupe/models/Latxa-Llama-3.1-8B-Instruct
-MODEL_PATH=/scratch/asudupe/checkpoints/Latxa-Llama-3.1-8B-Instruct/stage1/best/checkpoint-20976
+# MODEL_PATH=/scratch/andoni.sudupe/models/Latxa-Llama-3.1-8B-Instruct
+MODEL_PATH=/scratch/andoni.sudupe/checkpoints/Latxa-Llama-3.1-8B-Instruct/stage1/best/checkpoint-20976
 MODEL_BASE=HiTZ/Latxa-Llama-3.1-8B-Instruct
 MODEL_NAME=Latxa-Llama-3.1-8B-Instruct
 # TRAIN_FILE=Ansu/Instruct_S2S_eu
-TRAIN_FILE=/scratch/asudupe/datasets/VoiceAssistant-400K_eu/dataset_with_token_paths
-DATA_ROOT=/scratch/asudupe/datasets/VoiceAssistant-400K_eu
+TRAIN_FILE=/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu/dataset_with_token_paths
+DATA_ROOT=/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu
 EPOCHS=3
 
 BATCH_SIZE=64
@@ -53,14 +52,14 @@ latxa
 
 torchrun --nproc_per_node=$GPUS_PER_NODE \
     --rdzv_endpoint=localhost:29400 \
-    "/home/asudupe/Latxa-Omni/omni_speech/train/stage2.py" \
+    "/home/andoni.sudupe/Latxa-Omni/omni_speech/train/stage2.py" \
     --model-path $MODEL_PATH \
     --model-base $MODEL_BASE \
     --train-file $TRAIN_FILE \
     --data-root $DATA_ROOT \
     --train_batch_size $TRAIN_BATCH_SIZE \
     --gradient_accumulation_steps $(($BATCH_SIZE / ($TRAIN_BATCH_SIZE * $GPUS_PER_NODE))) \
-    --output_dir /scratch/asudupe/checkpoints/$MODEL_NAME/stage2/$SLURM_JOB_ID \
+    --output_dir /scratch/andoni.sudupe/checkpoints/$MODEL_NAME/stage2/$SLURM_JOB_ID \
     --num_train_epochs $EPOCHS \
     --run_name $MODEL_NAME\_VoiceAssistant\_$SLURM_JOB_ID\_whisper_eu \
     

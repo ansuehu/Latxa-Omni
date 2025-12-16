@@ -52,28 +52,61 @@ _ = net_g_marina.eval()
 
 _ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/marina_898.pth", net_g_marina, None)
 
-# hps_alex = get_hparams_from_file("/scratch/asudupe/models/vits/configs/sonora.json")
+hps_alex = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/sonora.json")
 
-# net_g_alex = SynthesizerTrn(
-#     len(symbols),
-#     hps_alex.data.filter_length // 2 + 1,
-#     hps_alex.train.segment_size // hps_alex.data.hop_length,
-#     **hps_alex.model).cuda()
-# _ = net_g_alex.eval()
+net_g_alex = SynthesizerTrn(
+    len(symbols),
+    hps_alex.data.filter_length // 2 + 1,
+    hps_alex.train.segment_size // hps_alex.data.hop_length,
+    **hps_alex.model).cuda()
+_ = net_g_alex.eval()
 
-# _ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/alex_864.pth", net_g_alex, None)
+_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/alex_864.pth", net_g_alex, None)
 
-# hps_comb = get_hparams_from_file("/scratch/asudupe/models/vits/configs/multispeaker.json")
+hps_comb = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/multispeaker.json")
 
-# net_g_comb = SynthesizerTrn(
-#     len(symbols),
-#     hps_comb.data.filter_length // 2 + 1,
-#     hps_comb.train.segment_size // hps_comb.data.hop_length,
-#     n_speakers=9,
-#     **hps_comb.model).cuda()
-# _ = net_g_comb.eval()
+net_g_comb = SynthesizerTrn(
+    len(symbols),
+    hps_comb.data.filter_length // 2 + 1,
+    hps_comb.train.segment_size // hps_comb.data.hop_length,
+    n_speakers=9,
+    **hps_comb.model).cuda()
+_ = net_g_comb.eval()
 
-# _ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/multispeaker_500000.pth", net_g_comb, None)
+_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/multispeaker_500000.pth", net_g_comb, None)
+
+hps_nerea = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/gaitu.json")
+
+net_g_nerea = SynthesizerTrn(
+    len(symbols),
+    hps_nerea.data.filter_length // 2 + 1,
+    hps_nerea.train.segment_size // hps_nerea.data.hop_length,
+    **hps_nerea.model).cuda()
+_ = net_g_nerea.eval()
+
+_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/nerea_435000.pth", net_g_nerea, None)
+
+hps_miren = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/gaitu.json")
+
+net_g_miren = SynthesizerTrn(
+    len(symbols),
+    hps_miren.data.filter_length // 2 + 1,
+    hps_miren.train.segment_size // hps_miren.data.hop_length,
+    **hps_miren.model).cuda()
+_ = net_g_miren.eval()
+
+_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/miren_433000.pth", net_g_miren, None)
+
+hps_jon = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/gaitu.json")
+
+net_g_jon = SynthesizerTrn(
+    len(symbols),
+    hps_jon.data.filter_length // 2 + 1,
+    hps_jon.train.segment_size // hps_jon.data.hop_length,
+    **hps_jon.model).cuda()
+_ = net_g_jon.eval()
+
+_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/jon_431000.pth", net_g_jon, None)
 
 speakers = {
     0: "Aintzane",
@@ -86,8 +119,12 @@ speakers = {
     7: "Pello",
     8: "Xabier",
     9: "Marina",
-    10: "Alex"
+    10: "Alex",
+    11: "Nerea",
+    12: "Miren",
+    13: "Jon"
 }
+speaker_to_id = {name: id for id, name in speakers.items()}
 model_name = "Ansu/mHubert-basque-ASR"
 
 processor = Wav2Vec2Processor.from_pretrained(model_name)
@@ -95,10 +132,16 @@ model = HubertModel.from_pretrained(model_name)
 model.eval()
 model.cuda()
 
-kmeans = joblib.load("/scratch/asudupe/models/kmeans/basque_hubert_k1000_L9.pt")
+kmeans = joblib.load("/scratch/andoni.sudupe/models/kmeans/basque_hubert_k1000_L9.pt")
 # hps_kristof = get_hparams_from_file("./configs/kristof_eu.json")
 
-DATASET_PATH='/scratch/asudupe/datasets/VoiceAssistant-400K_eu'
+DATASET_PATH='/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu'
+
+# import matplotlib.pyplot as plt
+# import IPython.display as ipd
+
+# Verifica qué speech se está usando (LIBBERTSO o /vits)
+print("Usando speech desde:", speech.__file__)
 
 def sanitize(s):
     return "".join(c if ord(c) < 128 else "_" for c in s)
@@ -129,12 +172,15 @@ def getPhones(text, language):
     text = sanitize(text)
     # logging.info(f"text: {text}")
     cleaned_text = clean_text(text)
+
+    cleaned_text = re.sub(r'(\d+)\.([A-Za-zÀ-ÿ])', r'\1. \2', cleaned_text)
+
     # logging.info(f"cleaned_text: {cleaned_text}")
-    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./dataset_generation/vits/modulo1y2 -HDic=./dataset_generation/vits/dict/eu_dic -Lang=eu -TxtMode=Spell -PhTSimple=y 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
+    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-15 | ./dict/modulo1y2 -HDic=./dict/eu_dic -Lang=eu -TxtMode=Spell -PhTSimple=y 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
     phones = os.popen(command).read()
     # print('phones:', phones)
 
-    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./dataset_generation/vits/modulo1y2 -HDic=./dataset_generation/vits/dict/eu_dic -Lang=eu -TxtMode=Word -PhTSimple=n 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
+    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./dict/modulo1y2 -HDic=./dict/eu_dic -Lang=eu -TxtMode=Word -PhTSimple=n 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
 
     checker = os.popen(command).read()
     # print('checker:', checker)
@@ -143,6 +189,8 @@ def getPhones(text, language):
     slp_all = []
     # logging.info(f"phones: {phones}")
     for ph, ch in zip(phones.split('\n'), checker.split('\n')):
+        if len(ph) == 0:
+            continue
         # logging.info(f"ph: {ph}")
         # logging.info(f"ch: {ch}")
         clp = ""
@@ -167,23 +215,24 @@ def getPhones(text, language):
         else:
             slp.append('.')
         # logging.info(f"slp: {slp}")
-        slp_all.extend(slp)
-    phones = np.array(slp_all)
+        slp_all.append(np.array(slp))
 
     # print(phones)
 
-    return phones
+    return slp_all
 
 def get_text(text, hps, language, path=False):
     if not path:
         text = getPhones(text, language)
         # logging.info(f'text: {text}')
-    text_norm = text_to_sequence(text, hps.data.text_cleaners, language, inference=not path)
-    if hps.data.add_blank:
-        text_norm = commons.intersperse(text_norm, 0)
-    text_norm = torch.LongTensor(text_norm)
-    return text_norm
-
+    texts_norm = []
+    for t in text:
+        text_norm = text_to_sequence(t, hps.data.text_cleaners, language, inference=not path)
+        if hps.data.add_blank:
+            text_norm = commons.intersperse(text_norm, 0)
+        text_norm = torch.LongTensor(text_norm)
+        texts_norm.append(text_norm)
+    return texts_norm
 
 def infer_voice(question, voice, device): 
     sid=0
@@ -197,6 +246,15 @@ def infer_voice(question, voice, device):
     elif voice == 10:
         net_g = net_g_alex
         hps = hps_alex
+    elif voice == 11:
+        net_g = net_g_nerea
+        hps = hps_nerea
+    elif voice == 12:
+        net_g = net_g_miren
+        hps = hps_miren
+    elif voice == 13:
+        net_g = net_g_jon
+        hps = hps_jon
     # elif voice == 4:
     #     net_g = net_g_nerea
     #     hps = hps_nerea
@@ -214,12 +272,17 @@ def infer_voice(question, voice, device):
     net_g.to(device)
     stn_tst = get_text(question, hps, language='eu')
     # logging.info(stn_tst)
-    with torch.no_grad(): 
-        x_tst = stn_tst.to(device).unsqueeze(0)
-        x_tst_lengths = torch.LongTensor([stn_tst.size(0)]).to(device)
-        sid = torch.LongTensor([sid]).to(device)
-        audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=.667, noise_scale_w=0.8, length_scale=1)[0][0,0].data.cpu().float().numpy()
-        return audio
+    all_audio = np.array([])
+    for text in stn_tst:
+        with torch.no_grad(): 
+            x_tst = text.to(device).unsqueeze(0)
+            x_tst_lengths = torch.LongTensor([text.size(0)]).to(device)
+            sid = torch.LongTensor([sid]).to(device)
+            audio = net_g.infer(x_tst, x_tst_lengths, sid=sid, noise_scale=.667, noise_scale_w=0.8, length_scale=1)[0][0,0].data.cpu().float().numpy()
+        all_audio = np.append(all_audio, audio)
+    
+    return all_audio
+
 # def process_example(example, model, processor, kmeans):
 #     try:
 #         audio_path = os.path.join(
@@ -269,7 +332,9 @@ def assign_tokens(waveform, model, processor, kmeans):
 
 def process(ex, rank): 
     device = f"cuda:{(rank or 0) % torch.cuda.device_count()}"
-    # question = ex['question']
+    question = ex['question']
+    spk = ex['speaker']
+    voice = speaker_to_id[spk]
     answer = ex['answer'] 
     # if len(question) > 450 or len(answer) > 1000:
     #     print("Skipping long example.")
@@ -281,30 +346,30 @@ def process(ex, rank):
     # print("Using voice:", random_voice)
     # spk = speakers[random_voice]
     # with open(output_file_path, 'a') as f:
-    # try:
-    #     audio_question = infer_voice(question, random_voice, device)
+    try:
+        audio_question = infer_voice(question, voice, device)
 
-    #     audio_question = librosa.resample(audio_question, orig_sr=22050, target_sr=16000)
-    #     ex["question_audio"] = audio_question
-    #     ex['speaker'] = spk
-
-    #     # logging.warning(f'Audio len: {len(audio)}')
-    #     # audio_path_question = f'question_{idx}_{ex["index"]}_{spk}.wav'
-    #     # sf.write(os.path.join("/scratch/asudupe/datasets/translation/audioak", audio_path_question), audio_question, 16000)
-    #     # ex["audio_path_question"]=audio_path_question
-    #     # f.write(audio_path+"\n")
-    # except Exception as e:
-    #     logging.warning(f"Error processing example: {e}")
-    #     # audio_path = f'question_{idx}_{ex["index"]}_{spk}_error.wav'
-    #     ex['question_audio'] = np.array([0.0], dtype=np.float32)
-    #     ex['speaker'] = 'error'
-    #     # ex["audio_path_question"]=audio_path
+        audio_question = librosa.resample(audio_question, orig_sr=22050, target_sr=16000)
+        
+        sf.write(os.path.join(DATASET_PATH, os.path.relpath(ex["question_audio"], start="audio_files")), audio_answer, 16000)
+        
+        # logging.warning(f'Audio len: {len(audio)}')
+        # audio_path_question = f'question_{idx}_{ex["index"]}_{spk}.wav'
+        # sf.write(os.path.join("/scratch/asudupe/datasets/translation/audioak", audio_path_question), audio_question, 16000)
+        # ex["audio_path_question"]=audio_path_question
+        # f.write(audio_path+"\n")
+    except Exception as e:
+        logging.warning(f"Error processing example: {e}")
+        # audio_path = f'question_{idx}_{ex["index"]}_{spk}_error.wav'
+        ex['question_audio'] = "error"
+        ex['speaker'] = 'error'
+        # ex["audio_path_question"]=audio_path
 
     try:
         audio_answer = infer_voice(answer, 9, device)
         audio_answer = librosa.resample(audio_answer, orig_sr=22050, target_sr=16000)
         # audio_path_answer = f'answer_{idx}_{ex["index"]}.wav'
-        sf.write(os.path.join(DATASET_PATH, ex["answer_audio"]), audio_answer, 16000)
+        sf.write(os.path.join(DATASET_PATH, os.path.relpath(ex["answer_audio"], start="audio_files")), audio_answer, 16000)
         tokens = assign_tokens(audio_answer, model, processor, kmeans)
         npy_out = DATASET_PATH
         for s in ex['answer_token'].split('/')[-3:]:
@@ -315,7 +380,7 @@ def process(ex, rank):
 
     except Exception as e:
 
-        # logging.warning(f"Error processing example: {e}")
+        logging.warning(f"Error processing example: {e}")
         # logging.info(ex['answer_token'])
 
         ex["answer_token"] = 'error'
@@ -386,7 +451,7 @@ def main():
 
     # process_fn = partial(process, output_file_path=output_file_path)
     # print(process(dataset[0], 0))
-    data = load_from_disk("/scratch/asudupe/datasets/VoiceAssistant-400K_eu/dataset_with_token_paths")
+    data = load_from_disk("/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu")
 
 
     dataset = data['train']
@@ -401,7 +466,7 @@ def main():
 
     dataset = parts[args.id]
 
-    dataset = dataset.map(process,
+    data['train'] = dataset.map(process,
                         with_rank=True,
                         num_proc=4)
     dataset = data['test']
@@ -416,12 +481,12 @@ def main():
 
     dataset = parts[args.id]
 
-    dataset = dataset.map(process,
+    data['test'] = dataset.map(process,
                         with_rank=True,
                         num_proc=4)
 
     print('Finished!')
-    # dataset.save_to_disk(f"/scratch/asudupe/datasets/VoiceAssistant-400K_eu_{args.start}_{args.end}")
+    dataset.save_to_disk(f"/scratch/asudupe/datasets/VoiceAssistant-400K_eu_new")
 
 if __name__ == "__main__":
     main()
