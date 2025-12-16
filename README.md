@@ -20,10 +20,8 @@ Reproducing [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) with Latxa-3.1-8B
    ```
 5. Change some packages versions:
    ```
-   pip install transformers==4.45.0
-   pip install deepspeed==0.15.4
-   pip install accelerate==0.34.2
-   pip install wandb
+   pip install transformers==4.45.0 deepspeed==0.15.4 accelerate==0.34.2 wandb datasets
+   conda install ffmpeg
    ```
 6. Install `flash-attention` (v2) for the right CUDA and Torch versions.
    ```
@@ -60,8 +58,15 @@ Reproducing [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) with Latxa-3.1-8B
    wget https://dl.fbaipublicfiles.com/hubert/mhubert_base_vp_en_es_fr_it3.pt -P models/wav2unit
    wget https://dl.fbaipublicfiles.com/hubert/mhubert_base_vp_en_es_fr_it3_L11_km1000.bin -P models/wav2unit
    ```
-6. Download wav files from [speechocean762](https://github.com/jimbozhang/speechocean762) and put them in `speechocean/WAVE`.
-7. (optional) Download speech files (dev-clean, test-clean, and train-clean-100) from [librispeech](https://www.openslr.org/12) and put them in `librispeech/LibriSpeech`.
+6. Download the dataset.
+   ```
+   hf download Ansu/VoiceAssistant-400K_eu --local-dir ./VoiceAssistant-400K_eu/ --repo-type=dataset
+   ```
+7. Extract the dataset.
+   ```
+   
+   ```
+9. 
 
 ## Usage
 ### Train
