@@ -1,21 +1,19 @@
 #!/bin/sh
 
-#SBATCH --account=hitz-exclusive 
+#SBATCH --account=hitz-exclusive
 #SBATCH --partition=hitz-exclusive
 #SBATCH --constraint=a100-sxm4
 #SBATCH --job-name=ahotsak_sortu
 #SBATCH --gres=gpu:1 # Number of GPUs
-#SBATCH --cpus-per-gpu=2 # Number of CPU cores (2 is reasonable)
-#SBATCH --mem-per-gpu=64GB # RAM memory needed (8-16GB)
+#SBATCH --cpus-per-gpu=4 # Number of CPU cores (2 is reasonable)
+#SBATCH --mem-per-gpu=128GB # RAM memory needed (8-16GB)
 #SBATCH --time=1-00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=asudupe008@ikasle.ehu.eus
-#SBATCH --output=.slurm/ahotsak_sortu.out.log
-#SBATCH --error=.slurm/ahotsak_sortu.err.log
-#SBATCH --chdir=/home/asudupe/Latxa-Omni
 #SBATCH --array=0-3
+#SBATCH --output=/home/asudupe/Latxa-Omni/.slurm/ahotsak_sortu-%a.out.log
+#SBATCH --error=/home/asudupe/Latxa-Omni/.slurm/ahotsak_sortu-%a.err.log
 
 PART_ID=${SLURM_ARRAY_TASK_ID}
 
-python dataset_generation/vits/inference_andoni.py --id $PART_ID
-#!/bin/sh
+python inference_andoni.py --id $PART_ID

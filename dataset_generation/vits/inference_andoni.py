@@ -41,7 +41,7 @@ from transformers import Wav2Vec2Processor, HubertModel
 import joblib
 
 
-hps_marina = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/sonora.json")
+hps_marina = get_hparams_from_file("/scratch/asudupe/models/vits/configs/sonora.json")
 
 net_g_marina = SynthesizerTrn(
     len(symbols),
@@ -50,32 +50,32 @@ net_g_marina = SynthesizerTrn(
     **hps_marina.model).cuda()
 _ = net_g_marina.eval()
 
-_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/marina_898.pth", net_g_marina, None)
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/marina_898.pth", net_g_marina, None)
 
-hps_alex = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/sonora.json")
+hps_alex = get_hparams_from_file("/scratch/asudupe/models/vits/configs/sonora.json")
 
-# net_g_alex = SynthesizerTrn(
-#     len(symbols),
-#     hps_alex.data.filter_length // 2 + 1,
-#     hps_alex.train.segment_size // hps_alex.data.hop_length,
-#     **hps_alex.model).cuda()
-# _ = net_g_alex.eval()
+net_g_alex = SynthesizerTrn(
+    len(symbols),
+    hps_alex.data.filter_length // 2 + 1,
+    hps_alex.train.segment_size // hps_alex.data.hop_length,
+    **hps_alex.model).cuda()
+_ = net_g_alex.eval()
 
-_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/alex_864.pth", net_g_alex, None)
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/alex_864.pth", net_g_alex, None)
 
-hps_comb = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/multispeaker.json")
+hps_comb = get_hparams_from_file("/scratch/asudupe/models/vits/configs/multispeaker.json")
 
-# net_g_comb = SynthesizerTrn(
-#     len(symbols),
-#     hps_comb.data.filter_length // 2 + 1,
-#     hps_comb.train.segment_size // hps_comb.data.hop_length,
-#     n_speakers=9,
-#     **hps_comb.model).cuda()
-# _ = net_g_comb.eval()
+net_g_comb = SynthesizerTrn(
+    len(symbols),
+    hps_comb.data.filter_length // 2 + 1,
+    hps_comb.train.segment_size // hps_comb.data.hop_length,
+    n_speakers=9,
+    **hps_comb.model).cuda()
+_ = net_g_comb.eval()
 
-_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/multispeaker_500000.pth", net_g_comb, None)
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/multispeaker_500000.pth", net_g_comb, None)
 
-hps_nerea = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/gaitu.json")
+hps_nerea = get_hparams_from_file("/scratch/asudupe/models/vits/configs/gaitu.json")
 
 net_g_nerea = SynthesizerTrn(
     len(symbols),
@@ -84,9 +84,9 @@ net_g_nerea = SynthesizerTrn(
     **hps_nerea.model).cuda()
 _ = net_g_nerea.eval()
 
-_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/nerea_435000.pth", net_g_nerea, None)
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/nerea_435000.pth", net_g_nerea, None)
 
-hps_miren = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/gaitu.json")
+hps_miren = get_hparams_from_file("/scratch/asudupe/models/vits/configs/gaitu.json")
 
 net_g_miren = SynthesizerTrn(
     len(symbols),
@@ -95,9 +95,9 @@ net_g_miren = SynthesizerTrn(
     **hps_miren.model).cuda()
 _ = net_g_miren.eval()
 
-_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/miren_433000.pth", net_g_miren, None)
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/miren_433000.pth", net_g_miren, None)
 
-hps_jon = get_hparams_from_file("/scratch/andoni.sudupe/models/vits/configs/gaitu.json")
+hps_jon = get_hparams_from_file("/scratch/asudupe/models/vits/configs/gaitu.json")
 
 net_g_jon = SynthesizerTrn(
     len(symbols),
@@ -106,7 +106,7 @@ net_g_jon = SynthesizerTrn(
     **hps_jon.model).cuda()
 _ = net_g_jon.eval()
 
-_ = load_checkpoint("/scratch/andoni.sudupe/models/vits/checkpoints/jon_431000.pth", net_g_jon, None)
+_ = load_checkpoint("/scratch/asudupe/models/vits/checkpoints/jon_431000.pth", net_g_jon, None)
 
 speakers = {
     0: "Aintzane",
@@ -132,10 +132,10 @@ model = HubertModel.from_pretrained(model_name)
 model.eval()
 model.cuda()
 
-kmeans = joblib.load("/scratch/andoni.sudupe/models/kmeans/basque_hubert_k1000_L9.pt")
+kmeans = joblib.load("/scratch/asudupe/models/kmeans/basque_hubert_k1000_L9.pt")
 # hps_kristof = get_hparams_from_file("./configs/kristof_eu.json")
 
-DATASET_PATH='/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu'
+DATASET_PATH='/scratch/asudupe/datasets/VoiceAssistant-400K_eu'
 
 # import matplotlib.pyplot as plt
 # import IPython.display as ipd
@@ -255,15 +255,7 @@ def infer_voice(question, voice, device):
     elif voice == 13:
         net_g = net_g_jon
         hps = hps_jon
-    # elif voice == 4:
-    #     net_g = net_g_nerea
-    #     hps = hps_nerea
-    # elif voice == 5:
-    #     net_g = net_g_miren
-    #     hps = hps_miren 
-    # elif voice == 6:
-    #     net_g = net_g_jon
-    #     hps = hps_jon         
+     
     else: 
         print("Voice not recognized. Using default (marina).") 
         net_g = net_g_marina 
@@ -351,7 +343,7 @@ def process(ex, rank):
 
         audio_question = librosa.resample(audio_question, orig_sr=22050, target_sr=16000)
         
-        sf.write(os.path.join(DATASET_PATH, os.path.relpath(ex["question_audio"], start="audio_files")), audio_answer, 16000)
+        sf.write(os.path.join(DATASET_PATH, os.path.relpath(ex["question_audio"], start="audio_files")), audio_question, 16000)
         
         # logging.warning(f'Audio len: {len(audio)}')
         # audio_path_question = f'question_{idx}_{ex["index"]}_{spk}.wav'
@@ -366,7 +358,7 @@ def process(ex, rank):
         # ex["audio_path_question"]=audio_path
 
     try:
-        audio_answer = infer_voice(answer, 9, device)
+        audio_answer = infer_voice(answer, 10, device)
         audio_answer = librosa.resample(audio_answer, orig_sr=22050, target_sr=16000)
         # audio_path_answer = f'answer_{idx}_{ex["index"]}.wav'
         sf.write(os.path.join(DATASET_PATH, os.path.relpath(ex["answer_audio"], start="audio_files")), audio_answer, 16000)
@@ -451,7 +443,7 @@ def main():
 
     # process_fn = partial(process, output_file_path=output_file_path)
     # print(process(dataset[0], 0))
-    data = load_from_disk("/scratch/andoni.sudupe/datasets/VoiceAssistant-400K_eu")
+    data = load_from_disk("/scratch/asudupe/datasets/VoiceAssistant-400K_eu")
 
 
     dataset = data['train']
@@ -468,7 +460,7 @@ def main():
 
     data['train'] = dataset.map(process,
                         with_rank=True,
-                        num_proc=4)
+                        num_proc=6)
     dataset = data['test']
     n = len(dataset)
 
@@ -483,10 +475,10 @@ def main():
 
     data['test'] = dataset.map(process,
                         with_rank=True,
-                        num_proc=4)
+                        num_proc=6)
 
     print('Finished!')
-    dataset.save_to_disk(f"/scratch/asudupe/datasets/VoiceAssistant-400K_eu_new")
+    dataset.save_to_disk(f"/scratch/asudupe/datasets/VoiceAssistant-400K_eu_new_{args.id}")
 
 if __name__ == "__main__":
     main()
