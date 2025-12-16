@@ -18,3 +18,4 @@
 PART_ID=${SLURM_ARRAY_TASK_ID}
 
 python dataset_generation/vits/inference_andoni.py --id $PART_ID
+#!/bin/sh

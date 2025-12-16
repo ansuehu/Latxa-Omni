@@ -6,11 +6,12 @@
 #SBATCH --cpus-per-gpu=2 # Number of CPU cores (2 is reasonable)
 #SBATCH --mem-per-gpu=64GB # RAM memory needed (8-16GB)
 #SBATCH --time=8-00:00
+#SBATCH --time=8-00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=asudupe008@ikasle.ehu.eus
 #SBATCH --output=.slurm/Latxa-Omni-Stage2.out.log
 #SBATCH --error=.slurm/Latxa-Omni-Stage2.err.log
-#SBATCH --chdir=/home/asudupe/Latxa-Omni
+#SBATCH --chdir=/home/andoni.sudupe/Latxa-Omni
 
 export SSL_CERT_FILE=~/cacert.pem
 export CUDA_DEVICE_MAX_CONNECTIONS=1
@@ -41,6 +42,7 @@ EPOCHS=3
 
 BATCH_SIZE=64
 TRAIN_BATCH_SIZE=8
+TRAIN_BATCH_SIZE=8
 
 echo $MODEL_PATH
 echo $MODEL_NAME
@@ -53,14 +55,14 @@ echo $EPOCHS
 
 torchrun --nproc_per_node=$GPUS_PER_NODE \
     --rdzv_endpoint=localhost:29400 \
-    "/home/asudupe/Latxa-Omni/omni_speech/train/stage2.py" \
+    "/home/andoni.sudupe/Latxa-Omni/omni_speech/train/stage2.py" \
     --model-path $MODEL_PATH \
     --model-base $MODEL_BASE \
     --train-file $TRAIN_FILE \
     --data-root $DATA_ROOT \
     --train_batch_size $TRAIN_BATCH_SIZE \
     --gradient_accumulation_steps $(($BATCH_SIZE / ($TRAIN_BATCH_SIZE * $GPUS_PER_NODE))) \
-    --output_dir /scratch/asudupe/checkpoints/$MODEL_NAME/stage2/$SLURM_JOB_ID \
+    --output_dir /scratch/andoni.sudupe/checkpoints/$MODEL_NAME/stage2/$SLURM_JOB_ID \
     --num_train_epochs $EPOCHS \
     --run_name $MODEL_NAME\_VoiceAssistant\_$SLURM_JOB_ID\_whisper_eu \
     
