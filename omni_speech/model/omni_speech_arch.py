@@ -86,6 +86,11 @@ class OmniSpeechMetaForCausalLM(ABC):
             # speech_encoder.half()
             encoder_outs = speech_encoder(speech.permute(0, 2, 1))
             speech_lengths = (speech_lengths + 1) // 2
+        elif "hubert" in speech_encoder_type.lower():
+            # speech=speech.half()
+            # speech_encoder.half()
+            encoder_outs = speech_encoder(speech.permute(0, 2, 1))
+            speech_lengths = (speech_lengths + 1) // 2
         else:
             raise ValueError(f'Unknown speech encoder: {speech_encoder}')
         speech_projector_type = self.config.speech_projector_type

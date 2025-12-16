@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-#SBATCH --account=hitz-exclusive 
-#SBATCH --partition=hitz-exclusive
+#SBATCH --qos=xlong
 #SBATCH --constraint=a100-sxm4
 #SBATCH --job-name=Latxa-Omni-Stage1 # Name of the process
 #SBATCH --gres=gpu:4 # Number of GPUs
@@ -9,8 +8,8 @@
 #SBATCH --time=4-00:00
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=asudupe008@ikasle.ehu.eus
-#SBATCH --output=.slurm/Latxa-Omni-Stage1-1epoch.out.log
-#SBATCH --error=.slurm/Latxa-Omni-Stage1-1epoch.err.log
+#SBATCH --output=.slurm/Latxa-Omni-Stage1.out.log
+#SBATCH --error=.slurm/Latxa-Omni-Stage1.err.log
 #SBATCH --chdir=/home/asudupe/Latxa-Omni
 
 export SSL_CERT_FILE=~/cacert.pem
@@ -31,14 +30,13 @@ GPUS_PER_NODE=4
 #     --temperature 0 \
 #     --conv-mode llama_3 \
 #     --output-folder $SLURM_JOB_ID \
-# MODEL_PATH=/scratch/asudupe/models/Latxa-Llama-3.1-8B-Instruct
-MODEL_PATH=/scratch/asudupe/checkpoints/Latxa-Llama-3.1-8B-Instruct/3813783/checkpoint-20976
+MODEL_PATH=/scratch/asudupe/models/Latxa-Llama-3.1-8B-Instruct
 MODEL_BASE=HiTZ/Latxa-Llama-3.1-8B-Instruct
 MODEL_NAME=Latxa-Llama-3.1-8B-Instruct
 # TRAIN_FILE=Ansu/Instruct_S2S_eu
-TRAIN_FILE=/scratch/asudupe/datasets/VoiceAssistant-400K_eu/dataset
+TRAIN_FILE=/scratch/asudupe/datasets/VoiceAssistant-400K_eu
 DATA_ROOT=/scratch/asudupe/datasets/VoiceAssistant-400K_eu
-EPOCHS=1
+EPOCHS=4
 
 BATCH_SIZE=64
 TRAIN_BATCH_SIZE=16

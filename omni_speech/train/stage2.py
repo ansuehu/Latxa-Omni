@@ -78,7 +78,7 @@ class CustomDataset(Dataset):
         conv.append_message(conv.roles[1], re)
         prompt = conv.get_prompt()
 
-        tgt_unit = np.load(item['answer_token'])
+        tgt_unit = np.load(os.path.join(args.data_root, item['answer_token']))
         tgt_unit = torch.tensor(tgt_unit)
         speech_file = item["question_audio"]
 
@@ -111,11 +111,11 @@ class CustomDataset(Dataset):
         return ret
     def __len__(self):
         return len(self.dataset)
-    
+
 # DataLoader
 def create_data_loader(dataset, tokenizer, model_config, input_type, mel_size, data_root, batch_size=1, num_workers=1):
     assert batch_size == 1, "batch_size must be 1"
-    
+
     dataset = CustomDataset(dataset, tokenizer, model_config, input_type, mel_size, data_root)
     #data_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, shuffle=False, collate_fn=collate_fn)
     return dataset
@@ -189,7 +189,7 @@ def train_model(args):
         gradient_checkpointing=True,
         gradient_checkpointing_kwargs={'use_reentrant':False},
         # eval_steps=100,                            # 评估步骤间隔
-        learning_rate=2e-5,                         # 学习率大小
+        learning_rate=2e-4,                         # 学习率大小
         lr_scheduler_type='cosine',                 # 学习率调度策略，LLM 训练一般都用余弦
         bf16=True,        
         fp16=False,   

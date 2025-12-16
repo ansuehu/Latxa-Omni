@@ -27,3 +27,13 @@ class WhisperWrappedEncoder:
         replace_layer_norm(encoder)
         
         return encoder
+
+class HubertWrappedEncoder:
+    
+    @classmethod
+    def load(cls, model_config):
+
+        from transformers import HubertModel
+        encoder = HubertModel.from_pretrained(model_config.speech_encoder)
+        
+        return encoder

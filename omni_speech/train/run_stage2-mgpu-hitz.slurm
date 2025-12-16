@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-#SBATCH --qos=xlong
+#SBATCH --account=hitz-exclusive 
+#SBATCH --partition=hitz-exclusive
 #SBATCH --constraint=a100-sxm4
 #SBATCH --job-name=Latxa-Omni-Stage2 # Name of the process
 #SBATCH --gres=gpu:4 # Number of GPUs
@@ -31,7 +32,7 @@ GPUS_PER_NODE=4
 #     --conv-mode llama_3 \
 #     --output-folder $SLURM_JOB_ID \
 # MODEL_PATH=/scratch/asudupe/models/Latxa-Llama-3.1-8B-Instruct
-MODEL_PATH=/scratch/asudupe/checkpoints/Latxa-Llama-3.1-8B-Instruct/stage1/3863016/checkpoint-27968
+MODEL_PATH=/scratch/asudupe/checkpoints/Latxa-Llama-3.1-8B-Instruct/stage1/3863016/checkpoint-20976
 MODEL_BASE=HiTZ/Latxa-Llama-3.1-8B-Instruct
 MODEL_NAME=Latxa-Llama-3.1-8B-Instruct
 # TRAIN_FILE=Ansu/Instruct_S2S_eu

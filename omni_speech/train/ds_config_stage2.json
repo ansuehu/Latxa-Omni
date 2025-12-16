@@ -1,6 +1,6 @@
 {
-    "train_micro_batch_size_per_gpu": 16,
-    "gradient_accumulation_steps": 1,
+    "train_micro_batch_size_per_gpu": "auto",
+    "gradient_accumulation_steps": "auto",
     "steps_per_print": 100,
     "bf16": {
       "enabled": true
@@ -25,7 +25,7 @@
       "type": "WarmupCosineLR",
       "params": {
         "warmup_min_ratio": 0,
-        "warmup_num_steps": 0,
+        "warmup_num_steps": "auto",
         "cos_min_ratio": 2e-5,
         "total_num_steps": "auto"
       }
@@ -44,4 +44,3 @@
     "zero_allow_untested_optimizer": true,
     "wall_clock_breakdown": false
   }
-  
