@@ -339,13 +339,15 @@ def process(ex, rank):
     # spk = speakers[random_voice]
     # with open(output_file_path, 'a') as f:
     try:
-        
-        if not os.path.exists(os.path.join(DATASET_PATH, os.path.relpath(ex["question_audio"]))):
+        question_output = os.path.join(DATASET_PATH, os.path.relpath(ex["question_audio"], start="audio_files"))
+        if not os.path.exists(question_output):
             audio_question = infer_voice(question, voice, device)
             audio_question = librosa.resample(audio_question, orig_sr=22050, target_sr=16000)
-            sf.write(os.path.join(DATASET_PATH, os.path.relpath(ex["question_audio"], start="audio_files")), audio_question, 16000)
-            ex['question_audio'] = os.path.relpath(ex["question_audio"])
+            sf.write(question_output, audio_question, 16000)
+        else:
+            logging.info("a")
         
+        ex['question_audio'] = os.path.relpath(ex["question_audio"], start="audio_files")
         # logging.warning(f'Audio len: {len(audio)}')
         # audio_path_question = f'question_{idx}_{ex["index"]}_{spk}.wav'
         # sf.write(os.path.join("/scratch/asudupe/datasets/translation/audioak", audio_path_question), audio_question, 16000)
@@ -359,17 +361,19 @@ def process(ex, rank):
         # ex["audio_path_question"]=audio_path
 
     try:
+        token_output = os.path.join(DATASET_PATH, os.path.relpath(ex["answer_token"]))
+        answer_output = os.path.join(DATASET_PATH, os.path.relpath(ex["answer_audio"], start="audio_files"))
         # audio_path_answer = f'answer_{idx}_{ex["index"]}.wav'
-        if not os.path.exists(os.path.join(DATASET_PATH, os.path.relpath(ex["question_audio"]))) or not os.path.exists(os.path.join(DATASET_PATH, os.path.relpath(ex["answer_audio"], start="audio_files"))):
+        if not os.path.exists(token_output) or not os.path.exists(answer_output):
             audio_answer = infer_voice(answer, 10, device)
             audio_answer = librosa.resample(audio_answer, orig_sr=22050, target_sr=16000)
-            sf.write(os.path.join(DATASET_PATH, os.path.relpath(ex["answer_audio"], start="audio_files")), audio_answer, 16000)
+            sf.write(answer_output, audio_answer, 16000)
             tokens = assign_tokens(audio_answer, model, processor, kmeans)
-            np.save(os.path.join(DATASET_PATH, os.path.relpath(ex["answer_audio"], start="audio_files")), tokens)
-            ex['answer_audio'] = os.path.relpath(ex["question_audio"], start="audio_files")
+            np.save(token_output, tokens)
+        else:
+            logging.warning("b")
 
-        # ex["answer_audio"] = audio_answer
-        # ex["audio_path_answer"]=audio_path_answer
+        ex['answer_audio'] = os.path.relpath(ex["answer_audio"], start="audio_files")
 
     except Exception as e:
 
@@ -447,7 +451,6 @@ def main():
     data = load_from_disk("/scratch/asudupe/datasets/VoiceAssistant-400K_eu")
 
     dataset = data['train']
-    dataset = dataset.shuffle()
     n = len(dataset)
 
     parts = [
@@ -458,6 +461,7 @@ def main():
     ]
 
     dataset = parts[args.id]
+    dataset = dataset.shuffle()
 
     data['train'] = dataset.map(process,
                         with_rank=True,
@@ -473,7 +477,7 @@ def main():
     ]
 
     dataset = parts[args.id]
-
+    dataset = dataset.shuffle()
     data['test'] = dataset.map(process,
                         with_rank=True,
                         num_proc=6)

@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-#SBATCH --qos=xlong
+#SBATCH --account=hitz-exclusive
+#SBATCH --partition=hitz-exclusive
 #SBATCH --constraint=a100-sxm4
 #SBATCH --job-name=Latxa-Omni-Stage1 # Name of the process
 #SBATCH --gres=gpu:4 # Number of GPUs

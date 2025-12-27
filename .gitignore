@@ -10,3 +10,4 @@ Whisper*
 *.wav
 audioak/
 infer.ipynb
+vocoder/
