@@ -7,9 +7,10 @@ models/
 /Llama*
 .slurm/
 Whisper*
-*.wav
 audioak/
 infer.ipynb
 vocoder/
 ebaluazioa/
 results/
+erantzuna_latxa
+erantzuna_latxa_omni
