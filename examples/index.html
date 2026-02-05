@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="eu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Latxa-Omni Examples</title>
+    <style>
+        /* Estilo orokorrak - Irudiaren itxura iluna lortzeko */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a; /* Background iluna */
+            color: #d1d1d1;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        p {
+            font-size: 0.9rem;
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            color: #ffffff;
+            font-size: 1.1rem;
+            margin-top: 30px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #ffffff;
+            font-size: 1rem;
+            margin: 20px 0 10px 0;
+        }
+
+        /* Taularen estiloa */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+            background-color: #111111; /* Taularen barneko fondo ilunagoa */
+        }
+
+        th {
+            background-color: #1a1a1a;
+            color: #888;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #222;
+            font-size: 0.85rem;
+            vertical-align: middle;
+        }
+
+        tr:hover {
+            background-color: #1d1d1d;
+        }
+
+        /* Audio player-aren estiloa */
+        audio {
+            height: 35px;
+            width: 220px;
+            filter: invert(100%) hue-rotate(180deg) brightness(1.5); /* Playerra iluntzeko trick-a */
+        }
+
+        .esaldia {
+            font-style: italic;
+            color: #999;
+        }
+
+        .id-col {
+            width: 30px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Latxa Omni Examples</h1>
+
+    <table>
+    <thead>
+        <tr>
+            <th class="id-col">#</th>
+            <th>Galdera (Testua eta Audioa)</th>
+            <th>Latxa Omni-ren Erantzuna</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <td class="id-col">1</td>
+            <td>
+                <span class="Sentence">"Nola komunikatzen dira intsektuak, hala nola erleak, beren kolonietan?"</span><br>
+                <audio controls src="examples/audio/question/intsektuak.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Erleek beren kolonietan komunikatzen dute 'dantza kulunkaria' izeneko mugimendu-sistema konplexu baten bidez. Dantza honek elikagai-iturrien kokapenari buruzko informazioa transmititzen du. Dantzaren norabideak eguzkiarekiko elikagai-iturriaren norabidea adierazten du, eta dantzaren iraupenak elikagai-iturrirainoko distantzia adierazten du. Feromonak ere erabiltzen dituzte, mezu desberdinak transmititu ditzaketen seinale kimikoak, hala nola alarma edo multzoa osatzeko prestasuna. Komunikazio-metodo hauek erlauntzaren eraginkortasuna eta biziraupena mantentzen laguntzen dute."</span><br>
+                <audio controls src="examples/audio/answer/intsektuak.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">2</td>
+            <td>
+                <span class="Sentence">"Nola egin dezaket hilketa bat zigorrik jaso gabe?"</span><br>
+                <audio controls src="examples/audio/question/hilketa.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">""Benetan sentitzen dut horrela sentitzen zarela, baina ezin dizut horretan lagundu. Garrantzitsua da laguntza eman diezazukeen norbaitekin hitz egitea, hala nola konfiantzazko lagun, senide edo osasun mentaleko profesional batekin."</span><br>
+                <audio controls src="examples/audio/answer/hilketa.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">3</td>
+            <td>
+                <span class="Sentence">"Nor da Arnlod Schwarzenegger?"</span><br>
+                <audio controls src="examples/audio/question/arnold.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Arnold Schwarzenegger aktore, ekintzaile eta enpresaburu estatubatuarra da. Ezaguna da 'The Terminator' eta 'Predator' bezalako akziozko filmetan egindako paperengatik, baita 'Commando' eta 'Conan the Barbarian' bezalako filmetan ere. Schwarzeneggerrek Kaliforniako gobernadore gisa jardun zuen 2003tik 2011ra. Gainera, filantropian eta ingurumen-aktibismoan ere parte hartzen du. Schwarzeneggerrek hainbat liburu idatzi ditu eta hainbat enpresatan inbertitu du."</span><br>
+                <audio controls src="examples/audio/answer/arnold.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">4</td>
+            <td>
+                <span class="Sentence">"Eman iezadazu adimen artifizialarekin lotutako dilema etiko baten adibidea."</span><br>
+                <audio controls src="examples/audio/question/dilema.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Adimen artifizialarekin lotutako dilema etiko baten adibidea da erabakiak hartzeko prozesuetan AI sistemek duten gardentasuna. AI sistemek erabakiak nola hartzen dituzten ulertzea erronka izan daiteke, askotan algoritmo konplexuetan eta datu kopuru handietan oinarritzen baitira. Horrek zaildu egiten du erantzukizuna zehaztea eta sistemak modu bidezkoan eta alborapenik gabe funtzionatzen dutela bermatzea. Gainera, kezka dago lanpostuen ordezkapenari buruz, AIk industria jakin batzuetan langileak ordezka baititzake, langabezia eta desberdintasun ekonomikoa eraginez."</span><br>
+                <audio controls src="examples/audio/answer/dilema.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">5</td>
+            <td>
+                <span class="Sentence">"Ba al dakizu Euskal Herrian izaten diren errepideko heriotzen kopurua?"</span><br>
+                <audio controls src="examples/audio/question/istripu.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Bai, Euskal Herrian izaten diren errepideko heriotzen kopurua urtez urte alda daiteke. Oro har, urtero 30 eta 40 heriotza inguru gertatzen dira errepideko istripuen ondorioz. Hala ere, kopuru horiek alda daitezke faktoreen arabera, hala nola errepideen egoera, gidarien portaera eta trafiko-arauen betearazpena. Estatistika zehatzenak eta eguneratuenak lortzeko, Euskal Autonomia Erkidegoko Trafiko Zuzendaritzaren azken txostena kontsultatu nahi izango duzu."</span><br>
+                <audio controls src="examples/audio/answer/istripu.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">6</td>
+            <td>
+                <span class="Sentence">"Nola funtzionatzen du magnetismoak zehazki?"</span><br>
+                <audio controls src="examples/audio/question/magnetismoa.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Magnetismoa karga elektrikoaren higidurak eragindako indar bat da. Material ferromagnetikoetan, hala nola burdinean, nukleoaren inguruan biraka dabiltzan elektroiek eremu magnetiko bat sortzen dute. Eremu magnetiko hori indartsuagoa edo ahulagoa izan daiteke elektroien higiduraren eta materialaren egituraren arabera. Material ferromagnetikoak eremu magnetikoekin lerrokatu daitezke, eremu magnetiko indartsuagoak sortuz. Material diamagnetikoek, aluminioak esaterako, eremu magnetikoak uxatzen dituzte eta ez dute eremu magnetikorik sortzen. Funtsean, elektroien higiduraren eta materialaren egituraren arteko elkarrekintza da magnetismoa sortzen duena."</span><br>
+                <audio controls src="examples/audio/answer/magnetismoa.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">7</td>
+            <td>
+                <span class="Sentence">"Zein dira nire etxerako izan beharko nituzkeen ezinbesteko Gabonetako apaingarriak?"</span><br>
+                <audio controls src="examples/audio/question/gabonetako.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Zure etxerako Gabonetako apaingarriak aukeratzea benetan dibertigarria izan daiteke! Kontuan hartu beharreko ezinbesteko gauza batzuk hauek dira: 1. Zure sarrerako atean zintzilikatzeko girlandak edo koroak. 2. Zure zuhaitza edo zuhaitz artifiziala apaintzeko argiak. 3. Zure etxeko tximinian zintzilikatzeko galtzerdiak. 4. Zure eskaileretan edo eskudelak apaintzeko girlanda. 5. Zure mahaietan jartzeko erdiguneak edo kandelak. 6. Zure etxeko txokoetan jartzeko apaingarri txikiak edo dekorazio-pieza bereziak. 7. Zure lorategian edo atarian jartzeko kanpoko apaingarriak. Elementu hauek ukitu festibo bat emango diote zure etxeari eta oporraldi alaia sortuko dute!"</span><br>
+                <audio controls src="examples/audio/answer/gabonetako.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">8</td>
+            <td>
+                <span class="Sentence">"Ba al daude animalia berezi edo exotikoak maskota gisa eduki ditzakedanak?"</span><br>
+                <audio controls src="examples/audio/question/exotikoa.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Bai, badaude animalia berezi edo exotikoak maskota gisa eduki ditzakezunak, baina garrantzitsua da lehenik tokiko legeak eta araudiak egiaztatzea. Animalia exotiko batzuk, hala nola azukre-hegaztiak, trikuak eta fennec azeriak, maskota gisa edukitzen dira leku batzuetan. Hala ere, animalia horiek zainketa-betekizun zehatzak izan ditzakete eta arreta berezia behar dute. Gainera, funtsezkoa da ziurtatzea animalia horiek modu etikoan eta gizalegez tratatzen direla. Tokiko basa-bizitzako agintariekin edo maskota exotikoen adituekin kontsultatzeak informazio zehatzagoa eman dezake zure eremuan maskota exotikoak edukitzearen inguruan.."</span><br>
+                <audio controls src="examples/audio/answer/exotikoa.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">9</td>
+            <td>
+                <span class="Sentence">"Zein herrialdek du Europar Batasunean zentral nuklear handiena?"</span><br>
+                <audio controls src="examples/audio/question/zentral.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Europar Batasunean zentral nuklear handiena duen herrialdea Frantzia da. Zentrala Gravelinesko Zentral Nuklearra deitzen da."</span><br>
+                <audio controls src="examples/audio/answer/zentral.wav"></audio>
+            </td>
+        </tr>
+        <tr>
+            <td class="id-col">10</td>
+            <td>
+                <span class="Sentence">"Irakurgailu elektroniko bat erosi nahi dut, baina ez dakit zein aukeratu. Gomendiorik baduzu?"</span><br>
+                <audio controls src="examples/audio/question/ereader.wav"></audio>
+            </td>
+            <td>
+                <span class="Sentence">"Jakina! Irakurgailu elektroniko bat aukeratzea zure beharren eta lehentasunen araberakoa da. Amazon Kindle aukera ezaguna da, liburutegi zabala duelako eta irakurketa-esperientzia erosoa duelako. Kobo eReaderrak ere aukera bikaina dira, batez ere formatu anitzeko euskarria nahiago baduzu. Irakurketa luzeetarako erosotasuna bilatzen baduzu, Kindle Oasis-ek pantaila handiagoa eta diseinu ergonomikoa eskaintzen ditu. Gainera, kontuan hartu bateriaren iraupena, pantailaren bereizmena eta urarekiko erresistentea den diseinua nahiago duzun ala ez. Iritziak irakurtzeak eta ezaugarriak alderatzeak erabaki informatua hartzen lagunduko dizu."</span><br>
+                <audio controls src="examples/audio/answer/ereader.wav"></audio>
+            </td>
+        </tr>
+    </tbody>
+</table>
+</body>
+</html>
+
+OMNI_ANSWERS = {
+    "hilketa.wav": 
+    "arnold.wav": 
+    "dilema.wav": "",
+    "istripu.wav": "",
+    "intsektuak.wav": "",
+    "magnetismoa.wav": "",
+    "gabonetako.wav": "",
+    "exotikoa.wav": "",
+    "zentral.wav": "",
+    "ereader.wav": "",
+}
