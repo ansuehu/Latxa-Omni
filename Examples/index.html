@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="eu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StyleTTS2 Euskeraz - Emaitzak</title>
+    <style>
+        /* Estilo orokorrak - Irudiaren itxura iluna lortzeko */
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #1a1a1a; /* Background iluna */
+            color: #d1d1d1;
+            line-height: 1.6;
+            margin: 0;
+            padding: 40px;
+        }
+
+        h1 {
+            color: #ffffff;
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+        }
+
+        p {
+            font-size: 0.9rem;
+            margin-bottom: 25px;
+        }
+
+        h2 {
+            color: #ffffff;
+            font-size: 1.1rem;
+            margin-top: 30px;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+        }
+
+        h3 {
+            color: #ffffff;
+            font-size: 1rem;
+            margin: 20px 0 10px 0;
+        }
+
+        /* Taularen estiloa */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 40px;
+            background-color: #111111; /* Taularen barneko fondo ilunagoa */
+        }
+
+        th {
+            background-color: #1a1a1a;
+            color: #888;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+
+        td {
+            padding: 12px;
+            border-bottom: 1px solid #222;
+            font-size: 0.85rem;
+            vertical-align: middle;
+        }
+
+        tr:hover {
+            background-color: #1d1d1d;
+        }
+
+        /* Audio player-aren estiloa */
+        audio {
+            height: 35px;
+            width: 220px;
+            filter: invert(100%) hue-rotate(180deg) brightness(1.5); /* Playerra iluntzeko trick-a */
+        }
+
+        .esaldia {
+            font-style: italic;
+            color: #999;
+        }
+
+        .id-col {
+            width: 30px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>StyleTTS2 Euskeraz - Emaitzak</h1>
+    <p>StyleTTS2 ereduaren emaitzak. Bi eredu ezberdin entrenatu dira, bat Maiderren esaldiekin eta bestea Anttonen esaldiekin. Hiru emaitza ezberdin erakutsiko dira:</p>
+
+    <h2>1.- Test esaldiak (entrenamenduan erabili ez direnak)</h2>
+
+    <h3>Maider</h3>
+    <table>
+        <thead>
+            <tr>
+                <th class="id-col">#</th>
+                <th>Maider (Originala)</th>
+                <th>Maider (Sintetikoa)</th>
+                <th>Esaldiak</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="id-col">1</td>
+                <td><audio controls src="audio/maider/orig_1.wav"></audio></td>
+                <td><audio controls src="audio/maider/synth_1.wav"></audio></td>
+                <td class="esaldia">Gero kendu egin zuen.</td>
+            </tr>
+            <tr>
+                <td class="id-col">2</td>
+                <td><audio controls src="audio/maider/orig_2.wav"></audio></td>
+                <td><audio controls src="audio/maider/synth_2.wav"></audio></td>
+                <td class="esaldia">Gai hori ere jorratuko dute.</td>
+            </tr>
+            <tr>
+                <td class="id-col">3</td>
+                <td><audio controls src="audio/maider/orig_3.wav"></audio></td>
+                <td><audio controls src="audio/maider/synth_3.wav"></audio></td>
+                <td class="esaldia">Gerra zibila lehertzear egon liteke.</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <h3>Antton</h3>
+    <table>
+        <thead>
+            <tr>
+                <th class="id-col">#</th>
+                <th>Antton (Originala)</th>
+                <th>Antton (Sintetikoa)</th>
+                <th>Esaldiak</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td class="id-col">1</td>
+                <td><audio controls src="audio/antton/orig_1.wav"></audio></td>
+                <td><audio controls src="audio/antton/synth_1.wav"></audio></td>
+                <td class="esaldia">Gorpuzkiak gizakienak direla ia segurutzat jo dute.</td>
+            </tr>
+            <tr>
+                <td class="id-col">2</td>
+                <td><audio controls src="audio/antton/orig_2.wav"></audio></td>
+                <td><audio controls src="audio/antton/synth_2.wav"></audio></td>
+                <td class="esaldia">Gozogintza eta artisautza azokan klausurako komentuan egiten diren produktuak salduko dira.</td>
+            </tr>
+        </tbody>
+    </table>
+
+</body>
+</html>
