@@ -6,7 +6,7 @@
 
 | # | Maider (Originala) | Maider (Sintetikoa) | Esaldiak |
 |:---:|:---:|:---:|:---|
-| 1 | <audio controls src="audio/maider/orig_1.wav"></audio> | <audio controls src="audio/maider/synth_1.wav"></audio> | *Gero kendu egin zuen.* |
+| 1 | <audio controls src="audio/answer/intsektuak.wav"></audio> | <audio controls src="audio/maider/synth_1.wav"></audio> | *Gero kendu egin zuen.* |
 | 2 | <audio controls src="audio/maider/orig_2.wav"></audio> | <audio controls src="audio/maider/synth_2.wav"></audio> | *Gai hori ere jorratuko dute.* |
 | 3 | <audio controls src="audio/maider/orig_3.wav"></audio> | <audio controls src="audio/maider/synth_3.wav"></audio> | *Gerra zibila lehertzear egon liteke.* |
 | 4 | <audio controls src="audio/maider/orig_4.wav"></audio> | <audio controls src="audio/maider/synth_4.wav"></audio> | *Salneurrien azken beherakadak petrolio gordinak nazioarteko merkatuetan izandako balio-galerarekin batera gertatu dira.* |
