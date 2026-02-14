@@ -14,8 +14,7 @@ import soundfile as sf
 from omni_speech.conversation import default_conversation, conv_templates
 from omni_speech.constants import LOGDIR
 from omni_speech.utils import build_logger, server_error_msg
-from fairseq.models.text_to_speech.vocoder import CodeHiFiGANVocoder
-
+from speechbrain.inference.vocoders import UnitHIFIGAN
 
 logger = build_logger("gradio_web_server", "gradio_web_server.log")
 
@@ -100,41 +99,34 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, chunk_si
     model_name = model_selector
 
     if state.skip_next:
-        # This generate call is skipped due to invalid inputs
         yield (state, "", "", None)
         return
 
     if len(state.messages) == state.offset + 2:
-        # First round of conversation
         template_name = "llama_3"
         new_state = conv_templates[template_name].copy()
         new_state.append_message(new_state.roles[0], state.messages[-2][1])
         new_state.append_message(new_state.roles[1], None)
         state = new_state
 
-    # Query worker address
     controller_url = args.controller_url
     ret = requests.post(controller_url + "/get_worker_address",
             json={"model": model_name})
     worker_addr = ret.json()["address"]
-    logger.info(f"model_name: {model_name}, worker_addr: {worker_addr}")
 
-    # No available worker
     if worker_addr == "":
         state.messages[-1][-1] = server_error_msg
         yield (state, "", "", None)
         return
 
-    # Construct prompt
     prompt = state.get_prompt()
-
     sr, audio = state.messages[0][1][1]
     resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)
     audio = torch.tensor(audio.astype(np.float32)).unsqueeze(0)
     audio = resampler(audio).squeeze(0).numpy()
     audio /= 32768.0
     audio = audio.tolist()
-    # Make requests
+
     pload = {
         "model": model_name,
         "prompt": prompt,
@@ -147,70 +139,49 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, chunk_si
 
     yield (state, "", "", None)
 
-    cur_dir = os.path.dirname(os.path.abspath(__file__))
+    output_unit = [] # Initialize to collect all units
+    output_text = ""
 
     try:
-        # Stream output
         response = requests.post(worker_addr + "/worker_generate_stream",
             headers=headers, json=pload, stream=True, timeout=10)
-        num_generated_units = 0
-        wav_list = []
+        
         for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
             if chunk:
                 data = json.loads(chunk.decode())
                 if data["error_code"] == 0:
-                    output = data["text"][len(prompt):].strip()
+                    output_text = data["text"][len(prompt):].strip()
+                    # Keep updating the full unit list from the stream
                     output_unit = list(map(int, data["unit"].strip().split()))
-                    state.messages[-1][-1] = (output, data["unit"].strip())
+                    state.messages[-1][-1] = (output_text, data["unit"].strip())
 
-                    # vocoder
-                    new_units = output_unit[num_generated_units:]
-                    if len(new_units) >= chunk_size:
-                        num_generated_units = len(output_unit)
-                        x = {"code": torch.LongTensor(new_units).view(1, -1).cuda()}
-                        wav = vocoder(x, True)
-                        wav_list.append(wav.detach().cpu().numpy())
-
-                    if len(wav_list) > 0:
-                        wav_full = np.concatenate(wav_list)
-                        return_value = (16000, wav_full)
-                    else:
-                        return_value = None
-
-                    yield (state, state.messages[-1][-1][0], state.messages[-1][-1][1], return_value)
+                    # Yield text only (audio remains None during streaming)
+                    yield (state, output_text, data["unit"].strip(), None)
                 else:
-                    output = data["text"] + f" (error_code: {data['error_code']})"
-                    state.messages[-1][-1] = output
+                    state.messages[-1][-1] = data["text"] + f" (error_code: {data['error_code']})"
                     yield (state, "", "", None)
                     return
-                time.sleep(0.03)
+                time.sleep(0.01)
+
     except requests.exceptions.RequestException as e:
         state.messages[-1][-1] = server_error_msg
         yield (state, "", "", None)
         return
 
-    if num_generated_units < len(output_unit):
-        new_units = output_unit[num_generated_units:]
-        num_generated_units = len(output_unit)
-        x = {
-            "code": torch.LongTensor(new_units).view(1, -1).cuda()
-        }
-        wav = vocoder(x, True)
-        wav_list.append(wav.detach().cpu().numpy())
-    
-    if len(wav_list) > 0:
-        wav_full = np.concatenate(wav_list)
-        return_value = (16000, wav_full)
-        logger.info(f"{wav_full.shape}")
+    if len(output_unit) > 0:
+        logger.info(f"Generating full audio for {len(output_unit)} units.")
+        x = torch.LongTensor(output_unit)
+        with torch.no_grad():
+            wav = vocoder.decode_unit(x.unsqueeze(-1), torch.tensor(np.load('/scratch/asudupe/models/hifigan/sonora_2/antton.npy')))
+        return_value = (16000, wav.detach().cpu().numpy()[0])
     else:
         return_value = None
 
-    yield (state, state.messages[-1][-1][0], state.messages[-1][-1][1], return_value)
+    # Final yield with the complete text and the complete audio
+    yield (state, output_text, state.messages[-1][-1][1], return_value)
 
     finish_tstamp = time.time()
-    logger.info(f"{output}")
-    logger.info(f"{output_unit}")
-
+    logger.info(f"Total time: {finish_tstamp - start_tstamp:.2f}s")
 
 title_markdown = ("""
 # 🎧 LLaMA-Omni: Seamless Speech Interaction with Large Language Models
@@ -314,9 +285,7 @@ def build_vocoder(args):
     global vocoder
     if args.vocoder is None:
         return None
-    with open(args.vocoder_cfg) as f:
-        vocoder_cfg = json.load(f)
-    vocoder = CodeHiFiGANVocoder(args.vocoder, vocoder_cfg).cuda()
+    vocoder = UnitHIFIGAN.from_hparams(source=args.vocoder, run_opts={"device":'cuda'})
 
 
 if __name__ == "__main__":
@@ -331,7 +300,6 @@ if __name__ == "__main__":
     parser.add_argument("--moderate", action="store_true")
     parser.add_argument("--embed", action="store_true")
     parser.add_argument("--vocoder", type=str)
-    parser.add_argument("--vocoder-cfg", type=str)
     args = parser.parse_args()
     logger.info(f"args: {args}")
 
