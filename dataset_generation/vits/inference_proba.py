@@ -220,7 +220,7 @@ def main():
                         with_rank=True,
                         num_proc=torch.cuda.device_count() * 4)
 
-    dataset.push_to_hub("Ansu/Instruct_S2S_eu", private=False, token='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')
+    dataset.push_to_hub("Ansu/Instruct_S2S_eu", private=False, token='...')
 
 if __name__ == "__main__":
     main()
