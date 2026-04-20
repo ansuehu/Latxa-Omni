@@ -139,3 +139,6 @@ Reproducing [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) with Latxa-3.1-8B
    answer = hifigan.decode_unit(output_uni·ts.unsqueeze(-1), torch.tensor(np.load('HiFiGAN-Basque-Maider-Antton/speaker_embeddings/antton.npy')))
    torchaudio.save("erantzuna.wav", answer.cpu(), sample_rate=16000)
    ```
+
+# Acknowledgements
+This work has been partially supported by the Basque Government (IKER-GAITU project), the Spanish Ministry for Digital Transformation and of Civil Service, and the EU-funded NextGenerationEU Recovery, Transformation and Resilience Plan (ILENIA project, 2022/TL-22/00215335 & ALIA).
