@@ -155,7 +155,6 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, chunk_si
 
     # Initialize timing variables
     time_to_first_unit = None
-    time_to_first_audio = None # <--- NEW: Initialize TTFA tracker
     stream_start = time.time()
     stream_end = None
 
@@ -174,7 +173,7 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, chunk_si
                     output_unit = list(map(int, data["unit"].strip().split()))
                     state.messages[-1][-1] = (output_text, data["unit"].strip())
 
-                    # --- Process audio chunks inside the loop ---
+                    # --- NEW: Process audio chunks inside the loop ---
                     new_units = output_unit[processed_unit_idx:]
                     current_audio_yield = None if len(accumulated_audio) == 0 else (16000, accumulated_audio)
 
@@ -188,11 +187,8 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, chunk_si
                         accumulated_audio = np.concatenate((accumulated_audio, wav_numpy))
                         processed_unit_idx += len(new_units)
                         
+                        # Update the yield variable with the newly appended audio
                         current_audio_yield = (16000, accumulated_audio)
-
-                        # <--- NEW: Capture TTFA right after the first audio chunk is generated
-                        if time_to_first_audio is None:
-                            time_to_first_audio = time.time() - start_tstamp
 
                     # Yield the progressively growing audio alongside the text
                     yield (state, output_text, data["unit"].strip(), current_audio_yield)
@@ -236,12 +232,8 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, chunk_si
     # Log the detailed metrics
     logger.info(f"--- LLaMA-Omni Speed Metrics Chunk Size={chunk_size}---")
     logger.info(f"Time to First Unit (TTFU): {time_to_first_unit:.3f}s")
-    
-    # <--- NEW: Log the Time to First Audio
-    if time_to_first_audio:
-        logger.info(f"Time to First Audio (TTFA):{time_to_first_audio:.3f}s") 
-        
     logger.info(f"Streaming Throughput:      {units_per_sec:.2f} units/s")
+    # logger.info(f"Vocoder Latency:           {vocoder_latency:.3f}s")
     logger.info(f"Audio Duration generated:  {audio_duration:.2f}s")
     logger.info(f"Total Response Time:       {total_time:.2f}s")
     logger.info(f"Real-Time Factor (RTF):    {rtf:.3f}x")

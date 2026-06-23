@@ -60,6 +60,9 @@ Reproducing [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) with Latxa-3.1-8B
    python -m omni_speech.serve.model_worker --host 0.0.0.0 --controller http://localhost:10000 --port 40000 --worker http://localhost:40000 --model-path Latxa-3.1-8B-Omni --s2s
    ```
 
+For port forwarding with ProxyJump:
+
+ssh -J jumpuser@jumphost targetuser@targethost -L localport:targethost:targetport
 ## Local Inference
    ```
    import torch
