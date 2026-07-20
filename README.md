@@ -47,22 +47,42 @@ Reproducing [Llama-Omni](https://github.com/ictnlp/LLaMA-Omni) with Latxa-3.1-8B
 ## Gradio Demo
 1. Launch a controller.
    ```
+   latxa
+   cd Latxa-Omni
    python -m omni_speech.serve.controller --host 0.0.0.0 --port 10000
    ```
 
 2. Launch a gradio web server.
    ```
-   python -m omni_speech.serve.gradio_web_server_sb --controller http://localhost:10000 --port 8000 --model-list-mode reload --vocoder ./HiFiGAN-Basque-Maider-Antton 
+   python -m omni_speech.serve.gradio_web_server_sb --controller http://localhost:10000 --port 8000 --model-list-mode reload --vocoder ./HiFiGAN-Basque-Maider-Antton
+   latxa
+   cd Latxa-Omni
+   python -m omni_speech.serve.gradio_web_server_history --controller http://localhost:10000 --port 8000 --model-list-mode reload --vocoder ./HiFiGAN-Basque-Maider-Antton
+   
+   latxa
+   cd Latxa-Omni
+   python -m omni_speech.serve.gradio_web_server_history_new --controller http://localhost:10000 --port 8000 --model-list-mode reload --vocoder ./HiFiGAN-Basque-Maider-Antton
+   
    ```
 
 3. Launch a model worker.
    ```
+   latxa
+   cd Latxa-Omni
    python -m omni_speech.serve.model_worker --host 0.0.0.0 --controller http://localhost:10000 --port 40000 --worker http://localhost:40000 --model-path Latxa-3.1-8B-Omni --s2s
    ```
 
 For port forwarding with ProxyJump:
 
 ssh -J jumpuser@jumphost targetuser@targethost -L localport:targethost:targetport
+ssh -J hyperion hyperion-255 -L 8000:localhost:8000
+
+
+## WEB
+latxa
+cd Latxa-Omni
+uvicorn main:app --host 0.0.0.0 --port 8000
+
 ## Local Inference
    ```
    import torch
