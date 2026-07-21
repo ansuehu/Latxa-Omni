@@ -237,6 +237,7 @@ class ModelWorker:
         self.tokenizer, self.model, self.context_len = load_pretrained_model(
             model_path, model_base, is_lora=is_lora, s2s=s2s, load_8bit=load_8bit, load_4bit=load_4bit, device=self.device, use_flash_attn=use_flash_attn)
         self.unit_tokenizer = build_unit_tokenizer(self.model.config.unit_vocab_size)
+        self.speech_embed_cache = {}
 
         if not no_register:
             self.register_to_controller()
@@ -296,10 +297,65 @@ class ModelWorker:
         # Read file using whisper and pass to existing load_speech
         speech = whisper.load_audio(path)
         return load_speech(speech, self.input_type, self.mel_size, self.model.config.speech_normalize)
+    
+    def get_speech_embeddings(self, audio_path):
+        # Return cached embeddings if available
+        if audio_path in self.speech_embed_cache:
+            return self.speech_embed_cache[audio_path]
+        
+        # If not cached, load and process raw audio
+        speech = self.load_speech_from_path(audio_path)
+        speech_tensor = speech.unsqueeze(0).to(self.device, dtype=torch.float16)
+        speech_lengths = torch.LongTensor([speech.shape[0]]).to(self.device)
 
+        with torch.no_grad():
+            # Run the tensor through the encoder and adapter layers
+            # IMPORTANT: Adapt this function call to your model's actual method
+            speech_embeds = self.model.encode_speech(speech_tensor, speech_lengths) 
+            
+        # Store in cache and return
+        self.speech_embed_cache[audio_path] = speech_embeds
+        return speech_embeds
+
+    # def get_input_params(self, history):
+    #     prompt = ""
+    #     speech_list = []
+        
+    #     for turn in history:
+    #         role = turn["role"]
+    #         content = turn["content"]
+
+    #         if role == "user":
+    #             prompt += "<|start_header_id|>user<|end_header_id|>\n\n<speech>\nPlease directly answer the questions in the user's speech.<|eot_id|>"
+    #             # Parse audio path from Gradio history and load it
+    #             audio_path = content["path"]
+    #             speech_tensor = self.load_speech_from_path(audio_path)
+    #             speech_list.append(speech_tensor)
+
+    #         elif role == "assistant":
+    #             if isinstance(content, str):
+    #                 prompt += f"<|start_header_id|>assistant<|end_header_id|>\n\n{content}<|eot_id|>"
+        
+    #     prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
+        
+    #     input_ids = tokenizer_speech_token(prompt, self.tokenizer, return_tensors='pt')
+        
+    #     if len(speech_list) > 0:
+    #         # Batch all historical audios together!
+    #         speech_tensors = torch.nn.utils.rnn.pad_sequence(
+    #             speech_list, batch_first=True, padding_value=0.0
+    #         )
+    #         speech_lengths = torch.LongTensor([s.shape[0] for s in speech_list])
+    #     else:
+    #         speech_tensors = None
+    #         speech_lengths = None
+
+    #     return input_ids, speech_tensors, speech_lengths, prompt
+    
     def get_input_params(self, history):
         prompt = ""
-        speech_list = []
+        speech_embed_list = []
+        speech_lengths_list = []
         
         for turn in history:
             role = turn["role"]
@@ -307,45 +363,52 @@ class ModelWorker:
 
             if role == "user":
                 prompt += "<|start_header_id|>user<|end_header_id|>\n\n<speech>\nPlease directly answer the questions in the user's speech.<|eot_id|>"
-                # Parse audio path from Gradio history and load it
+                
                 audio_path = content["path"]
-                speech_tensor = self.load_speech_from_path(audio_path)
-                speech_list.append(speech_tensor)
+                # Fetch embeddings from cache or compute them
+                embeds = self.get_speech_embeddings(audio_path)
+                
+                # Assume embeds are shape [1, seq_len, hidden_dim], remove batch dim for padding
+                embeds_squeezed = embeds[0] 
+                speech_embed_list.append(embeds_squeezed)
+                speech_lengths_list.append(embeds_squeezed.shape[0])
 
             elif role == "assistant":
-                # Safely ignore the assistant's output audio paths, only parse text
                 if isinstance(content, str):
                     prompt += f"<|start_header_id|>assistant<|end_header_id|>\n\n{content}<|eot_id|>"
+                elif isinstance(content, dict) and "path" in content:
+                    pass
         
         prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
-        
         input_ids = tokenizer_speech_token(prompt, self.tokenizer, return_tensors='pt')
         
-        if len(speech_list) > 0:
-            # Batch all historical audios together!
-            speech_tensors = torch.nn.utils.rnn.pad_sequence(
-                speech_list, batch_first=True, padding_value=0.0
+        if len(speech_embed_list) > 0:
+            # Batch the pre-computed embeddings together
+            speech_embeds = torch.nn.utils.rnn.pad_sequence(
+                speech_embed_list, batch_first=True, padding_value=0.0
             )
-            speech_lengths = torch.LongTensor([s.shape[0] for s in speech_list])
+            speech_lengths = torch.LongTensor(speech_lengths_list)
         else:
-            speech_tensors = None
+            speech_embeds = None
             speech_lengths = None
 
-        return input_ids, speech_tensors, speech_lengths, prompt
+        return input_ids, speech_embeds, speech_lengths, prompt
 
     @torch.inference_mode()
     def generate_stream(self, params):
         tokenizer, model = self.tokenizer, self.model
 
         if "history" in params:
-            # Execute Path 2: True Multi-Turn Audio processing
-            input_ids, speech, speech_lengths, ori_prompt = self.get_input_params(params["history"])
+            # Now returning speech_embeds instead of speech
+            input_ids, speech_embeds, speech_lengths, ori_prompt = self.get_input_params(params["history"])
             input_ids = input_ids.unsqueeze(0).to(self.device)
             
-            if speech is not None:
-                speech_tensor = speech.to(self.device, dtype=torch.float16)
+            if speech_embeds is not None:
+                speech_embeds = speech_embeds.to(self.device, dtype=torch.float16)
                 speech_lengths = speech_lengths.to(self.device)
-                speech_args = {"speech": speech_tensor, "speech_lengths": speech_lengths}
+                
+                # Update kwarg to pass embeddings directly
+                speech_args = {"speech_embeds": speech_embeds, "speech_lengths": speech_lengths}
             else:
                 speech_args = {}
         else:

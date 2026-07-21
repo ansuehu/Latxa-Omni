@@ -233,13 +233,16 @@ class OmniSpeechMetaForCausalLM(ABC):
 
     def prepare_inputs_labels_for_speech_and_text(
         self, input_ids, position_ids, attention_mask, past_key_values, labels,
-        speech, speech_lengths
+        speech, speech_lengths, speech_embeds=None
     ):
         speech_encoder = self.get_speech_encoder()
-        if speech_encoder is None or speech is None or input_ids.shape[1] == 1:
+        if speech_encoder is None or (speech is None and speech_embeds is None) or input_ids.shape[1] == 1:
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
-        speech_features = self.encode_speech(speech, speech_lengths)
+        if speech_embeds is not None:
+            speech_features = speech_embeds
+        else:
+            speech_features = self.encode_speech(speech, speech_lengths)
         
         _labels = labels
         _position_ids = position_ids

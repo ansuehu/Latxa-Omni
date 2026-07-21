@@ -3,7 +3,6 @@ import datetime
 import json
 import os
 import time
-import copy
 import tempfile
 import torch
 import torchaudio
@@ -87,6 +86,60 @@ def clear_history(request: gr.Request):
     return [], None, None, []
 
 
+def to_backend_history(history_state):
+    """Convert the UI history_state to the format the model worker expects.
+
+    The worker (model_worker.get_input_params) expects:
+      * user turns:      {"role": "user",      "content": {"path": <audio_path>}}
+      * assistant turns: {"role": "assistant", "content": <text str>}
+
+    Any audio file paths produced for assistant turns are only meant for the
+    UI and must NOT be sent to the worker (it would otherwise try to embed a
+    generated wav file as if it were user speech). We therefore flatten each
+    assistant turn to its text only.
+    """
+    backend = []
+    for msg in history_state:
+        role = msg["role"]
+        content = msg["content"]
+        if role == "user":
+            backend.append({"role": "user", "content": content})
+        else:  # assistant
+            if isinstance(content, str):
+                backend.append({"role": "assistant", "content": content})
+            elif isinstance(content, dict):
+                backend.append({"role": "assistant", "content": content.get("text", "")})
+    return backend
+
+
+def render_chatbot(history_state):
+    """Convert the UI history_state into Gradio Chatbot messages (type='messages')."""
+    messages = []
+    for msg in history_state:
+        role = msg["role"]
+        content = msg["content"]
+        
+        # 1. Handle plain text (e.g., older simple string history)
+        if isinstance(content, str):
+            messages.append({"role": role, "content": content})
+            continue
+            
+        # 2. Handle dict content containing optional text and/or audio path
+        if isinstance(content, dict):
+            text = content.get("text", "")
+            path = content.get("path")
+            
+            # Append text if it exists, OR if we are in the initial placeholder state (waiting for audio)
+            if text or not path:
+                messages.append({"role": role, "content": text})
+                
+            # Append the audio file sequentially using the correct dictionary format
+            if path:
+                messages.append({"role": role, "content": {"path": path}})
+                
+    return messages
+
+
 def http_bot(history_state, audio_input, model_selector, temperature, top_p, max_new_tokens, chunk_size, request: gr.Request):
     logger.info(f"http_bot. ip: {request.client.host}")
     start_tstamp = time.time()
@@ -97,74 +150,41 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
     worker_addr = ret.json()["address"]
 
     if worker_addr == "":
-        history_state.append({"role": "assistant", "content": server_error_msg})
-        yield (history_state, None, copy.deepcopy(history_state))
+        history_state.append({"role": "assistant", "content": {"text": server_error_msg, "path": None}})
+        yield (history_state, None, render_chatbot(history_state))
         return
 
-    # # 1. Update the conversation history with the user's audio input path
-    # if audio_input is not None:
-    #     history_state.append({"role": "user", "content": {"path": audio_input}})
-    
-    # # 2. Process the Audio for the backend
-    # # Load the audio file and resample to 16000Hz (the format Omni-1 expects)
-    # waveform, sr = torchaudio.load(audio_input)
-    # if waveform.shape[0] > 1: # Convert stereo to mono if necessary
-    #     waveform = waveform.mean(dim=0, keepdim=True)
-    # if sr != 16000:
-    #     resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=16000)
-    #     waveform = resampler(waveform)
-    
-    # audio_list = waveform.squeeze(0).tolist()
+    # Guard: a user turn requires audio. Without it, history would be
+    # corrupted (an assistant-only turn with no matching user input).
+    if audio_input is None:
+        history_state.append({"role": "assistant", "content": {"text": "Please provide speech input before sending.", "path": None}})
+        yield (history_state, None, render_chatbot(history_state))
+        return
 
-    # # 3. Rebuild the Llama-3 prompt string dynamically from the history state
-    # prompt = ""
-    # for i, msg in enumerate(history_state):
-    #     if msg["role"] == "user":
-    #         # If this is the newest message, inject the <speech> tag to trigger audio extraction
-    #         if i == len(history_state) - 1:
-    #             prompt += "<|start_header_id|>user<|end_header_id|>\n\n<speech>\nPlease directly answer the questions in the user's speech.<|eot_id|>"
-    #         # For past turns, remove the <speech> tag so the backend doesn't crash looking for old audio
-    #         else:
-    #             prompt += "<|start_header_id|>user<|end_header_id|>\n\n[User asked a previous question via audio]<|eot_id|>"
-    #     elif msg["role"] == "assistant":
-    #         # Extract just the text from previous assistant turns (ignore the audio filepath dicts)
-    #         content = msg["content"]
-    #         if isinstance(content, str):
-    #             prompt += f"<|start_header_id|>assistant<|end_header_id|>\n\n{content}<|eot_id|>"
-    
-    # # Trigger the assistant to speak for the current turn
-    # prompt += "<|start_header_id|>assistant<|end_header_id|>\n\n"
+    # 1. Append the user's audio input to the conversation history.
+    history_state.append({"role": "user", "content": {"path": audio_input}})
 
-    # # 4. Package the payload exactly as the Omni-1 backend expects it
-    # pload = {
-    #     "model": model_name,
-    #     "prompt": prompt, 
-    #     "audio": audio_list,
-    #     "temperature": float(temperature),
-    #     "top_p": float(top_p),
-    #     "max_new_tokens": min(int(max_new_tokens), 1500),
-    #     "stop": "<|eot_id|>",
-    # }
-
-    # 1. Update the conversation history with the user's audio input path
-    if audio_input is not None:
-        history_state.append({"role": "user", "content": {"path": audio_input}})
-    
-    # 2. Package the entire history in the payload (NO MORE prompt strings!)
+    # 2. Build the payload using a backend-friendly view of the history.
+    #    The history is sent *without* the pending assistant placeholder so the
+    #    worker appends the trailing assistant header itself.
     pload = {
         "model": model_name,
-        "history": history_state, # <--- The worker will process this directly now!
+        "history": to_backend_history(history_state),
         "temperature": float(temperature),
         "top_p": float(top_p),
         "max_new_tokens": min(int(max_new_tokens), 1500),
         "stop": "<|eot_id|>",
     }
 
-    # Yield initial state to show user's message in the UI immediately
-    yield (history_state, None, copy.deepcopy(history_state))
+    # 3. Append a single assistant placeholder that will be filled (text and
+    #    later the audio path) as the stream progresses. This keeps one
+    #    assistant entry per turn in the UI history.
+    history_state.append({"role": "assistant", "content": {"text": "", "path": None}})
+
+    yield (history_state, None, render_chatbot(history_state))
 
     output_unit = []
-    processed_unit_idx = 0 
+    processed_unit_idx = 0
     accumulated_audio = np.array([], dtype=np.float32)
     speaker_embedding = torch.tensor(np.load('/scratch/asudupe/models/hifigan/sonora_2/antton.npy'))
 
@@ -176,7 +196,7 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
     try:
         response = requests.post(worker_addr + "/worker_generate_stream",
             headers=headers, json=pload, stream=True, timeout=10)
-        
+
         for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
             if time_to_first_unit is None:
                 time_to_first_unit = time.time() - start_tstamp
@@ -184,12 +204,8 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
             if chunk:
                 data = json.loads(chunk.decode())
                 if data["error_code"] == 0:
-                    
-                    # Update text dynamically in the history state
-                    if history_state[-1]["role"] == "assistant" and isinstance(history_state[-1]["content"], str):
-                        history_state[-1]["content"] = data["text"]
-                    else:
-                        history_state.append({"role": "assistant", "content": data["text"]})
+                    # Update the text on the in-progress assistant entry.
+                    history_state[-1]["content"]["text"] = data["text"]
 
                     output_unit = list(map(int, data["unit"].strip().split()))
                     new_units = output_unit[processed_unit_idx:]
@@ -201,35 +217,33 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
                         x = torch.LongTensor(new_units)
                         with torch.no_grad():
                             wav = vocoder.decode_unit(x.unsqueeze(-1), speaker_embedding)
-                        
+
                         wav_numpy = wav.detach().cpu().numpy()[0]
                         accumulated_audio = np.concatenate((accumulated_audio, wav_numpy))
                         processed_unit_idx += len(new_units)
-                        
-                        current_audio_yield = (16000, accumulated_audio)
+
+                        current_audio_yield = (16000, wav_numpy)
 
                         if time_to_first_audio is None:
                             time_to_first_audio = time.time() - start_tstamp
 
-                        # Yield the intermediate history state and progressive audio
-                        yield (history_state, current_audio_yield, copy.deepcopy(history_state))
+                        yield (history_state, current_audio_yield, render_chatbot(history_state))
                     else:
-                        # Yield just the text update if we don't have enough audio chunks yet
-                        yield (history_state, None, copy.deepcopy(history_state))
+                        yield (history_state, None, render_chatbot(history_state))
 
                 else:
                     error_output = data["text"] + f" (error_code: {data['error_code']})"
-                    history_state.append({"role": "assistant", "content": error_output})
-                    yield (history_state, None, copy.deepcopy(history_state))
+                    history_state[-1]["content"]["text"] = error_output
+                    yield (history_state, None, render_chatbot(history_state))
                     return
-                
-                time.sleep(0.01) 
-                
+
+                time.sleep(0.01)
+
         stream_end = time.time()
 
     except requests.exceptions.RequestException as e:
-        history_state.append({"role": "assistant", "content": server_error_msg})
-        yield (history_state, None, copy.deepcopy(history_state))
+        history_state[-1]["content"]["text"] = server_error_msg
+        yield (history_state, None, render_chatbot(history_state))
         return
 
     # Process any remaining audio units left over after the stream finishes
@@ -240,21 +254,22 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
             wav = vocoder.decode_unit(x.unsqueeze(-1), speaker_embedding)
         wav_numpy = wav.detach().cpu().numpy()[0]
         accumulated_audio = np.concatenate((accumulated_audio, wav_numpy))
-        
+
     audio_duration = len(accumulated_audio) / 16000.0 if len(accumulated_audio) > 0 else 0
 
-    # 3. Finalize: Save the completely accumulated audio to a temporary file and append to history
+    # Attach the generated audio to the same assistant turn so the UI shows a
+    # single bubble containing text + audio playback.
     if len(accumulated_audio) > 0:
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
             sf.write(f.name, accumulated_audio, 16000)
-            # history_state.append({"role": "assistant", "content": {"path": f.name, "type": "audio/wav"}})
-    
+            history_state[-1]["content"]["path"] = f.name
+
     # Final yield to fully update the Chatbot UI with the generated audio file
-    yield (history_state, None, copy.deepcopy(history_state))
+    yield (history_state, None, render_chatbot(history_state))
 
     finish_tstamp = time.time()
     total_time = finish_tstamp - start_tstamp
-    
+
     # Calculate Throughput and RTF safely
     streaming_time = (stream_end - stream_start) if stream_end else 0
     units_per_sec = len(output_unit) / streaming_time if streaming_time > 0 else 0
@@ -264,12 +279,12 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
     # logger.info(f"--- LLaMA-Omni Speed Metrics Chunk Size={chunk_size}---")
     # logger.info(f"Time to First Unit (TTFU): {time_to_first_unit if time_to_first_unit else 0:.3f}s")
     # if time_to_first_audio:
-    #     logger.info(f"Time to First Audio (TTFA):{time_to_first_audio:.3f}s") 
+    #     logger.info(f"Time to First Audio (TTFA):{time_to_first_audio:.3f}s")
     # logger.info(f"Streaming Throughput:      {units_per_sec:.2f} units/s")
     # logger.info(f"Audio Duration generated:  {audio_duration:.2f}s")
     # logger.info(f"Total Response Time:       {total_time:.2f}s")
     # logger.info(f"Real-Time Factor (RTF):    {rtf:.3f}x")
-    print(history_state)
+    logger.info(f"http_bot done. ip: {request.client.host}. total_time={total_time:.2f}s rtf={rtf:.3f}x units={len(output_unit)}")
 
 
 title_markdown = ("""
@@ -312,7 +327,7 @@ def build_demo(embed_mode, vocoder, cur_dir=None, concurrency_count=10):
             audio_input_box = gr.Audio(sources=["upload", "microphone"], type="filepath", label="Speech Input")
             
             # This handles the intermediate stream playback without showing download buttons for incomplete streams
-            audio_output_box = gr.Audio(label="Speech Output", show_download_button=False, autoplay=False, visible=False)
+            audio_output_box = gr.Audio(label="Speech Output", show_download_button=False, autoplay=False, streaming=False, visible=False)
 
         with gr.Accordion("Parameters", open=True) as parameter_row:
             temperature = gr.Slider(minimum=0.0, maximum=1.0, value=0.0, step=0.1, interactive=True, label="Temperature",)

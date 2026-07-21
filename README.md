@@ -80,7 +80,7 @@ ssh -J hyperion hyperion-255 -L 8000:localhost:8000
 
 ## WEB
 latxa
-cd Latxa-Omni
+cd Latxa-Omni/omni_speech/web/
 uvicorn main:app --host 0.0.0.0 --port 8000
 
 ## Local Inference

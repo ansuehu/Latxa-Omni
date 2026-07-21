@@ -137,6 +137,7 @@ class OmniSpeech2SLlamaForCausalLM(OmniSpeechLlamaForCausalLM, GenerationWithCTC
         speech: Optional[torch.Tensor] = None,
         speech_lengths: Optional[torch.Tensor] = None,
         streaming_unit_gen=False,
+        speech_embeds: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> Union[GenerateOutput, torch.LongTensor]:
         position_ids = kwargs.pop("position_ids", None)
@@ -144,7 +145,25 @@ class OmniSpeech2SLlamaForCausalLM(OmniSpeechLlamaForCausalLM, GenerationWithCTC
         if "inputs_embeds" in kwargs:
             raise NotImplementedError("`inputs_embeds` is not supported")
 
-        if speech is not None:
+        if speech_embeds is not None:
+            (
+                inputs,
+                position_ids,
+                attention_mask,
+                _,
+                inputs_embeds,
+                _
+            ) = self.prepare_inputs_labels_for_speech_and_text(
+                inputs,
+                position_ids,
+                attention_mask,
+                None,
+                None,
+                None,
+                None,
+                speech_embeds=speech_embeds
+            )
+        elif speech is not None:
             (
                 inputs,
                 position_ids,

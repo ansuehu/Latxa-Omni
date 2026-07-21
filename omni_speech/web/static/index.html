@@ -2,60 +2,336 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Latxa-Omni Interface</title>
     <style>
-        /* Add your beautiful, custom CSS here */
-        body { font-family: 'Inter', sans-serif; background-color: #f4f4f9; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        .chat-container { width: 500px; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
-        .mic-button { background-color: #4F46E5; color: white; border: none; padding: 15px 30px; border-radius: 50px; font-size: 16px; cursor: pointer; transition: 0.3s; }
-        .recording { background-color: #EF4444; animation: pulse 1.5s infinite; }
-        @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 560px;
+            max-width: 100vw;
+            height: 100vh;
+            max-height: 900px;
+            background: white;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 0 40px rgba(0,0,0,0.08);
+        }
+        .header {
+            padding: 20px 24px;
+            border-bottom: 1px solid #e8eaed;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-shrink: 0;
+        }
+        .header h2 { font-size: 20px; font-weight: 600; color: #1a1a2e; }
+        .header .badge {
+            font-size: 11px;
+            background: #eef2ff;
+            color: #4F46E5;
+            padding: 2px 10px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+        #sessionLabel {
+            margin-left: auto;
+            font-size: 11px;
+            color: #999;
+        }
+        .chat-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            background: #fafafa;
+        }
+        .chat-area:empty::after {
+            content: "Your conversation will appear here. Tap the microphone to start.";
+            display: block;
+            text-align: center;
+            color: #aaa;
+            font-size: 14px;
+            margin-top: 40px;
+            padding: 20px;
+        }
+        .message {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 14px;
+            line-height: 1.5;
+            word-wrap: break-word;
+        }
+        .message.user {
+            align-self: flex-end;
+            background: #4F46E5;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .message.assistant {
+            align-self: flex-start;
+            background: white;
+            color: #1a1a2e;
+            border: 1px solid #e8eaed;
+            border-bottom-left-radius: 4px;
+        }
+        .message .audio-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 6px;
+        }
+        .message .audio-row audio {
+            height: 36px;
+            max-width: 200px;
+        }
+        .message .text-row {
+            margin-bottom: 4px;
+        }
+        .message .label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            opacity: 0.6;
+            margin-bottom: 2px;
+        }
+        .message.assistant .label { color: #4F46E5; }
+        .message.user .label { color: rgba(255,255,255,0.7); }
+        .controls {
+            padding: 16px 24px 20px;
+            border-top: 1px solid #e8eaed;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-shrink: 0;
+        }
+        .mic-button {
+            background-color: #4F46E5;
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 50px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+        }
+        .mic-button:hover { background-color: #4338CA; }
+        .mic-button.recording {
+            background-color: #EF4444;
+            animation: pulse 1.5s infinite;
+        }
+        .mic-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
+            50% { transform: scale(1.03); box-shadow: 0 0 0 10px rgba(239,68,68,0); }
+            100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0); }
+        }
+        #status {
+            font-size: 13px;
+            color: #888;
+            flex: 1;
+            text-align: center;
+        }
+        .error-msg {
+            align-self: center;
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+        .new-session-btn {
+            background: none;
+            border: 1px solid #e8eaed;
+            border-radius: 20px;
+            padding: 4px 14px;
+            font-size: 12px;
+            color: #666;
+            cursor: pointer;
+            flex-shrink: 0;
+        }
+        .new-session-btn:hover { background: #f5f5f5; }
+        @media (max-width: 600px) {
+            .container { max-height: none; height: 100dvh; border-radius: 0; }
+        }
     </style>
 </head>
 <body>
 
-<div class="chat-container">
-    <h2>🗣️ Latxa-Omni</h2>
-    <p id="status">Click to start listening...</p>
-    <button id="micBtn" class="mic-button">Start Microphone</button>
-    <br><br>
-    <audio id="audioPlayer" controls autoplay hidden></audio>
+<div class="container">
+    <div class="header">
+        <h2>Latxa-Omni</h2>
+        <span class="badge">Basque S2S</span>
+        <span id="sessionLabel"></span>
+        <button class="new-session-btn" onclick="newSession()">New</button>
+    </div>
+
+    <div class="chat-area" id="chatArea"></div>
+
+    <div class="controls">
+        <button id="micBtn" class="mic-button">Start Microphone</button>
+        <span id="status">Ready</span>
+    </div>
 </div>
 
 <script>
-    let mediaRecorder;
-    let audioChunks = [];
-    let audioContext;
-    let analyser;
-    let silenceTimer;
-    
-    const SILENCE_THRESHOLD = 10; // Adjust based on background noise
-    const SILENCE_DURATION = 1500; // 1.5 seconds of silence triggers the send
+    const SESSION_KEY = 'latxa_omni_session_id';
 
+    function getSessionId() {
+        let sid = localStorage.getItem(SESSION_KEY);
+        if (!sid) {
+            sid = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+            localStorage.setItem(SESSION_KEY, sid);
+        }
+        return sid;
+    }
+
+    function newSession() {
+        const sid = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+        localStorage.setItem(SESSION_KEY, sid);
+        document.getElementById('chatArea').innerHTML = '';
+        document.getElementById('sessionLabel').textContent = '';
+    }
+
+    function setSessionLabel() {
+        const sid = getSessionId();
+        document.getElementById('sessionLabel').textContent = sid.slice(0, 20) + '...';
+    }
+
+    const chatArea = document.getElementById('chatArea');
     const micBtn = document.getElementById('micBtn');
     const statusText = document.getElementById('status');
-    const audioPlayer = document.getElementById('audioPlayer');
+
+    let mediaRecorder = null;
+    let audioChunks = [];
+    let audioContext = null;
+    let analyser = null;
+    let silenceTimer = null;
+    let isProcessing = false;
+
+    const SILENCE_THRESHOLD = 10;
+    const SILENCE_DURATION = 1500;
+
+    // ---------- Rendering ----------
+
+    function audioUrl(path) {
+        if (!path) return null;
+        if (path.startsWith('/') || path.startsWith('http://') || path.startsWith('https://')) return path;
+        return '/audio/' + path;
+    }
+
+    function renderHistory(history) {
+        chatArea.innerHTML = '';
+        for (const msg of history) {
+            const role = msg.role;
+            const content = msg.content;
+
+            if (role === 'user') {
+                const el = document.createElement('div');
+                el.className = 'message user';
+                let html = '<div class="label">You</div>';
+                if (typeof content === 'object' && content.path) {
+                    const url = audioUrl(content.path);
+                    html += '<div class="audio-row"><audio controls src="' + url + '"></audio></div>';
+                } else if (typeof content === 'string') {
+                    html += '<div class="text-row">' + escapeHtml(content) + '</div>';
+                }
+                el.innerHTML = html;
+                chatArea.appendChild(el);
+            } else if (role === 'assistant') {
+                const el = document.createElement('div');
+                el.className = 'message assistant';
+
+                let text = '';
+                let audioPath = null;
+                if (typeof content === 'string') {
+                    text = content;
+                } else if (typeof content === 'object') {
+                    text = content.text || '';
+                    audioPath = content.path || null;
+                }
+
+                let html = '<div class="label">Assistant</div>';
+                if (text) {
+                    html += '<div class="text-row">' + escapeHtml(text) + '</div>';
+                }
+                const aUrl = audioUrl(audioPath);
+                if (aUrl) {
+                    html += '<div class="audio-row"><audio controls src="' + aUrl + '"></audio></div>';
+                }
+                el.innerHTML = html;
+                chatArea.appendChild(el);
+            }
+        }
+        chatArea.scrollTop = chatArea.scrollHeight;
+    }
+
+    function escapeHtml(str) {
+        const div = document.createElement('div');
+        div.textContent = str;
+        return div.innerHTML;
+    }
+
+    // ---------- Load history on page load ----------
+
+    async function loadHistory() {
+        const sid = getSessionId();
+        setSessionLabel();
+        try {
+            const resp = await fetch('/api/history/' + encodeURIComponent(sid));
+            if (resp.ok) {
+                const data = await resp.json();
+                if (data.history && data.history.length > 0) {
+                    renderHistory(data.history);
+                }
+            }
+        } catch (e) {
+            // silent
+        }
+    }
+
+    // ---------- VAD Recording ----------
 
     micBtn.addEventListener('click', async () => {
+        if (isProcessing) return;
 
-        if (!audioPlayer.paused) {
-            audioPlayer.pause();
-            audioPlayer.currentTime = 0; 
+        if (mediaRecorder && mediaRecorder.state === 'recording') {
+            stopRecording();
+            return;
         }
-        
+
+        // Stop any playing audio
+        document.querySelectorAll('audio').forEach(a => { a.pause(); a.currentTime = 0; });
+
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
-            
-            // Push data if it exists
+
             mediaRecorder.ondataavailable = e => {
                 if (e.data && e.data.size > 0) {
                     audioChunks.push(e.data);
                 }
             };
-            
+
             mediaRecorder.onstop = sendAudioToServer;
 
             audioContext = new AudioContext();
@@ -63,76 +339,107 @@
             analyser = audioContext.createAnalyser();
             analyser.fftSize = 256;
             source.connect(analyser);
-            
-            // The '250' forces the recorder to emit data every 250ms
-            mediaRecorder.start(250); 
-            
+
+            mediaRecorder.start(250);
             micBtn.classList.add('recording');
-            micBtn.innerText = "Listening...";
-            statusText.innerText = "Speak now. I will automatically send when you stop.";
-            
+            micBtn.textContent = 'Listening...';
+            statusText.textContent = 'Speak now. I will automatically send when you stop.';
             detectSilence();
         } catch (err) {
-            console.error("Microphone access denied or unavailable:", err);
-            statusText.innerText = "Error: Cannot access microphone. Are you using HTTPS/localhost?";
+            statusText.textContent = 'Error: Cannot access microphone. Use HTTPS/localhost.';
         }
     });
 
-    async function sendAudioToServer() {
-        // Browsers natively record in webm/ogg, not standard wav.
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' }); 
-        console.log(`Sending audio payload. Size: ${audioBlob.size} bytes`);
+    function stopRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+        clearTimeout(silenceTimer);
+        if (audioContext) {
+            audioContext.close().catch(() => {});
+        }
+    }
 
+    async function sendAudioToServer() {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
         if (audioBlob.size === 0) {
-            statusText.innerText = "Error: Captured audio was empty.";
+            statusText.textContent = 'Captured audio was empty. Try again.';
+            micBtn.classList.remove('recording');
+            micBtn.textContent = 'Start Microphone';
+            isProcessing = false;
             return;
         }
 
+        isProcessing = true;
+        micBtn.disabled = true;
+        micBtn.classList.remove('recording');
+        micBtn.textContent = 'Processing...';
+        statusText.textContent = 'Thinking...';
+
         const formData = new FormData();
-        // Send it with a .webm extension so the backend knows what it is
-        formData.append("audio", audioBlob, "input.webm");
+        formData.append('audio', audioBlob, 'input.webm');
+        formData.append('session_id', getSessionId());
 
         try {
             const response = await fetch('/api/chat', {
                 method: 'POST',
                 body: formData
             });
-            
-            if (!response.ok) throw new Error(`Server returned ${response.status}`);
 
-            const responseBlob = await response.blob();
-            const audioUrl = URL.createObjectURL(responseBlob);
-            
-            audioPlayer.src = audioUrl;
-            audioPlayer.hidden = false;
-            
-            micBtn.innerText = "Start Microphone";
-            statusText.innerText = "Response received!";
-            audioContext.close();
+            if (!response.ok) {
+                const errData = await response.json().catch(() => ({}));
+                throw new Error(errData.detail || 'Server returned ' + response.status);
+            }
+
+            const data = await response.json();
+
+            if (data.history) {
+                renderHistory(data.history);
+            }
+
+            statusText.textContent = 'Response received!';
+
+            // Auto-play the assistant audio
+            if (data.audio_url) {
+                const lastMsg = chatArea.lastElementChild;
+                if (lastMsg) {
+                    const audioEl = lastMsg.querySelector('audio');
+                    if (audioEl) {
+                        audioEl.play().catch(() => {});
+                    }
+                }
+            }
         } catch (error) {
-            console.error("Error connecting to server:", error);
-            statusText.innerText = "Error connecting to server. Check console.";
-            micBtn.classList.remove('recording');
-            micBtn.innerText = "Try Again";
+            statusText.textContent = 'Error: ' + error.message;
+            // Add error message to chat
+            const el = document.createElement('div');
+            el.className = 'error-msg';
+            el.textContent = 'Error: ' + error.message;
+            chatArea.appendChild(el);
+            chatArea.scrollTop = chatArea.scrollHeight;
         }
+
+        micBtn.disabled = false;
+        micBtn.textContent = 'Start Microphone';
+        isProcessing = false;
     }
+
     function detectSilence() {
+        if (!analyser) return;
         const bufferLength = analyser.frequencyBinCount;
         const dataArray = new Uint8Array(bufferLength);
-        
+
         const checkVolume = () => {
-            if (mediaRecorder.state === "inactive") return;
-            
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') return;
+
             analyser.getByteFrequencyData(dataArray);
             const volume = dataArray.reduce((a, b) => a + b) / bufferLength;
 
             if (volume < SILENCE_THRESHOLD) {
                 if (!silenceTimer) {
                     silenceTimer = setTimeout(() => {
-                        mediaRecorder.stop();
-                        micBtn.classList.remove('recording');
-                        micBtn.innerText = "Processing...";
-                        statusText.innerText = "Thinking...";
+                        stopRecording();
                     }, SILENCE_DURATION);
                 }
             } else {
@@ -143,6 +450,9 @@
         };
         checkVolume();
     }
+
+    // ---------- Init ----------
+    loadHistory();
 </script>
 </body>
 </html>
