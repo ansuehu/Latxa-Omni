@@ -160,7 +160,7 @@ def http_bot(state, model_selector, temperature, top_p, max_new_tokens, chunk_si
 
     try:
         response = requests.post(worker_addr + "/worker_generate_stream",
-            headers=headers, json=pload, stream=True, timeout=10)
+            headers=headers, json=pload, stream=True, timeout=(10, None))
         
         for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
             if time_to_first_unit is None:

@@ -240,7 +240,17 @@ class OmniSpeechMetaForCausalLM(ABC):
             return input_ids, position_ids, attention_mask, past_key_values, None, labels
 
         if speech_embeds is not None:
-            speech_features = speech_embeds
+            if speech_lengths is not None:
+                # speech_embeds is a single batched+padded tensor (each
+                # turn's embeddings padded to the longest turn via
+                # pad_sequence in ModelWorker.get_input_params). Trim each
+                # entry back to its real length -- exactly like
+                # encode_speech() does below -- otherwise every turn
+                # shorter than the longest one leaks zero-padding directly
+                # into the LLM's input sequence.
+                speech_features = [speech_embeds[i, :speech_lengths[i]] for i in range(speech_embeds.shape[0])]
+            else:
+                speech_features = speech_embeds
         else:
             speech_features = self.encode_speech(speech, speech_lengths)
         

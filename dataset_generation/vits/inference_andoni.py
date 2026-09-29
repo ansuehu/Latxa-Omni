@@ -143,9 +143,6 @@ DATASET_PATH='/scratch/asudupe/datasets/VoiceAssistant-400K_eu'
 # Verifica qué speech se está usando (LIBBERTSO o /vits)
 print("Usando speech desde:", speech.__file__)
 
-def sanitize(s):
-    return "".join(c if ord(c) < 128 else "_" for c in s)
-
 def clean_text(text):
     text = text.replace(':', ',')
     text = text.replace(';', ',')
@@ -169,18 +166,22 @@ def getPhones(text, language):
     # Extracción fonética de las frases #
     #####################################
     text = text.lstrip()
-    text = sanitize(text)
     # logging.info(f"text: {text}")
     cleaned_text = clean_text(text)
 
     cleaned_text = re.sub(r'(\d+)\.([A-Za-zÀ-ÿ])', r'\1. \2', cleaned_text)
 
     # logging.info(f"cleaned_text: {cleaned_text}")
-    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-15 | ./dict/modulo1y2 -HDic=./dict/eu_dic -Lang=eu -TxtMode=Spell -PhTSimple=y 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
+    # NOTE: -HDic points at ahoNT/dicts/eu_dicc, the complete Basque
+    # normalization dictionary, not the truncated ./dict/eu_dic (see
+    # dataset_generation/normalize_voice_assistant.py for the same fix and
+    # why it matters -- the truncated dictionary makes modulo1y2 silently
+    # fall back to spelling numbers out digit-by-digit).
+    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-15 | ./dict/modulo1y2 -HDic=../ahoNT/dicts/eu_dicc -Lang=eu -TxtMode=Spell -PhTSimple=y 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
     phones = os.popen(command).read()
     # print('phones:', phones)
 
-    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./dict/modulo1y2 -HDic=./dict/eu_dic -Lang=eu -TxtMode=Word -PhTSimple=n 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
+    command = f"echo '{cleaned_text}' | iconv -f UTF-8 -t ISO-8859-1 | ./dict/modulo1y2 -HDic=../ahoNT/dicts/eu_dicc -Lang=eu -TxtMode=Word -PhTSimple=n 2> /dev/null | iconv -f ISO-8859-1 -t UTF-8"
 
     checker = os.popen(command).read()
     # print('checker:', checker)

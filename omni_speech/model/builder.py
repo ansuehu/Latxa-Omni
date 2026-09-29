@@ -52,12 +52,13 @@ def load_pretrained_model(model_path, model_base, is_lora=False, s2s=False, load
         print('Loading OmniSpeech from base model...')
         model = model_cls.from_pretrained(model_base, low_cpu_mem_usage=False, config=lora_cfg_pretrained, **kwargs)
         print('Loading additional OmniSpeech weights...')
-        if os.path.exists(os.path.join(model_path, 'non_lora_trainables.bin')):
-            non_lora_trainables = torch.load(os.path.join(model_path, 'non_lora_trainables.bin'), map_location='cpu')
-        non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
-        if any(k.startswith('model.model.') for k in non_lora_trainables):
-            non_lora_trainables = {(k[6:] if k.startswith('model.') else k): v for k, v in non_lora_trainables.items()}
-        model.load_state_dict(non_lora_trainables, strict=False)
+        non_lora_trainables_path = os.path.join(model_path, 'non_lora_trainables.bin')
+        if os.path.exists(non_lora_trainables_path):
+            non_lora_trainables = torch.load(non_lora_trainables_path, map_location='cpu')
+            non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
+            if any(k.startswith('model.model.') for k in non_lora_trainables):
+                non_lora_trainables = {(k[6:] if k.startswith('model.') else k): v for k, v in non_lora_trainables.items()}
+            model.load_state_dict(non_lora_trainables, strict=False)
 
         from peft import PeftModel
         print('Loading LoRA weights...')
@@ -134,13 +135,19 @@ def create_model(model_path, model_base, is_lora=False, s2s=False, load_8bit=Fal
         print('Model is loaded...')
         
     else:
+        if model_base is not None:
+            # Unlike load_pretrained_model, this branch loads everything
+            # (weights and tokenizer) from model_path alone; model_base is
+            # not consulted. Warn instead of silently ignoring it, since
+            # both training SLURM scripts pass --model-base here.
+            print(f"WARNING: model_base={model_base!r} is ignored by create_model() "
+                  f"when is_lora=False; loading tokenizer and weights from model_path={model_path!r} only.")
         tokenizer = AutoTokenizer.from_pretrained(model_path,padding_side="right",padding=True, use_fast=True)
+        kwargs.setdefault('attn_implementation', 'flash_attention_2')
         model = model_cls.from_pretrained(
             model_path,
             low_cpu_mem_usage=False,
-            attn_implementation="flash_attention_2",
             **kwargs,
-
         )
     
     if s2s:

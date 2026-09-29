@@ -25,6 +25,7 @@ MODEL_NAME = "None"
 VOCODER_PATH = "/dipc/asudupe/Latxa-Omni/HiFiGAN-Basque-Maider-Antton"
 SPEAKER_EMBEDDING_PATH = '/scratch/asudupe/models/hifigan/sonora_2/antton.npy'
 AUDIO_OUTPUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "tmp", "audio_output")
+STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 
 os.makedirs(AUDIO_OUTPUT_DIR, exist_ok=True)
 
@@ -68,12 +69,12 @@ def load_models():
 
 
 # Mount the static directory for the HTML frontend
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
 @app.get("/", response_class=HTMLResponse)
 async def get_index():
-    with open("static/index.html", "r") as f:
+    with open(os.path.join(STATIC_DIR, "index.html"), "r") as f:
         return f.read()
 
 
@@ -92,10 +93,15 @@ async def serve_audio(filename: str):
 
 
 @app.post("/api/chat")
-async def chat_endpoint(audio: UploadFile = File(...), session_id: str = Form("default_session")):
+def chat_endpoint(audio: UploadFile = File(...), session_id: str = Form("default_session")):
+    # Note: this is a sync `def`, not `async def`, so FastAPI runs it in a
+    # worker thread. The body below does blocking I/O (ffmpeg subprocess,
+    # synchronous `requests` calls, GPU vocoder decode) that would otherwise
+    # stall the whole event loop for the duration of every generation.
+
     # 1. Save incoming WebM audio to a temporary file
     with tempfile.NamedTemporaryFile(delete=False, suffix=".webm") as temp_audio:
-        temp_audio.write(await audio.read())
+        temp_audio.write(audio.file.read())
         webm_path = temp_audio.name
 
     wav_path = webm_path.replace(".webm", ".wav")
@@ -115,10 +121,10 @@ async def chat_endpoint(audio: UploadFile = File(...), session_id: str = Form("d
 
     os.unlink(webm_path)
 
-    if session_id not in conversations:
-        conversations[session_id] = []
-
-    history_state = conversations[session_id]
+    # Work on a copy of the session history. It is only written back to
+    # `conversations` on success, so a controller/worker failure below does
+    # not leave a permanent empty assistant placeholder in the stored history.
+    history_state = list(conversations.get(session_id, []))
 
     # 3. Copy user audio to output dir with a stable filename for serving
     user_audio_filename = f"user_{session_id}_{uuid.uuid4().hex}.wav"
@@ -173,7 +179,7 @@ async def chat_endpoint(audio: UploadFile = File(...), session_id: str = Form("d
     try:
         response = requests.post(
             f"{worker_addr}/worker_generate_stream",
-            headers=headers, json=pload, stream=True, timeout=10
+            headers=headers, json=pload, stream=True, timeout=(10, None)
         )
 
         for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
@@ -183,7 +189,7 @@ async def chat_endpoint(audio: UploadFile = File(...), session_id: str = Form("d
                     assistant_text_response = data.get("text", "")
                     history_state[-1]["content"]["text"] = assistant_text_response
 
-                    output_unit = list(map(int, data["unit"].strip().split()))
+                    output_unit = list(map(int, data.get("unit", "").strip().split()))
                     new_units = output_unit[processed_unit_idx:]
 
                     if len(new_units) >= chunk_size:
@@ -211,7 +217,7 @@ async def chat_endpoint(audio: UploadFile = File(...), session_id: str = Form("d
 
     # 7. Process remaining units
     remaining_units = output_unit[processed_unit_idx:]
-    if len(remaining_units) > 3:
+    if len(remaining_units) > 0:
         x = torch.LongTensor(remaining_units)
         with torch.no_grad():
             wav = vocoder.decode_unit(x.unsqueeze(-1), speaker_embedding)

@@ -21,6 +21,7 @@ os.environ['GRADIO_TEMP_DIR'] = './tmp'
 logger = build_logger("gradio_web_server", "gradio_web_server.log")
 
 vocoder = None
+speaker_embedding = None
 
 headers = {"User-Agent": "LLaMA-Omni Client"}
 
@@ -186,7 +187,6 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
     output_unit = []
     processed_unit_idx = 0
     accumulated_audio = np.array([], dtype=np.float32)
-    speaker_embedding = torch.tensor(np.load('/scratch/asudupe/models/hifigan/sonora_2/antton.npy'))
 
     time_to_first_unit = None
     time_to_first_audio = None
@@ -195,7 +195,7 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
 
     try:
         response = requests.post(worker_addr + "/worker_generate_stream",
-            headers=headers, json=pload, stream=True, timeout=10)
+            headers=headers, json=pload, stream=True, timeout=(10, None))
 
         for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
             if time_to_first_unit is None:
@@ -248,7 +248,7 @@ def http_bot(history_state, audio_input, model_selector, temperature, top_p, max
 
     # Process any remaining audio units left over after the stream finishes
     remaining_units = output_unit[processed_unit_idx:]
-    if len(remaining_units) > 3:
+    if len(remaining_units) > 0:
         x = torch.LongTensor(remaining_units)
         with torch.no_grad():
             wav = vocoder.decode_unit(x.unsqueeze(-1), speaker_embedding)
@@ -327,7 +327,12 @@ def build_demo(embed_mode, vocoder, cur_dir=None, concurrency_count=10):
             audio_input_box = gr.Audio(sources=["upload", "microphone"], type="filepath", label="Speech Input")
             
             # This handles the intermediate stream playback without showing download buttons for incomplete streams
-            audio_output_box = gr.Audio(label="Speech Output", show_download_button=False, autoplay=False, streaming=False, visible=False)
+            # http_bot() yields progressive audio chunks into this component
+            # as they're vocoded; it must be visible/autoplay for that
+            # streaming playback to actually reach the user (previously it
+            # was hidden with autoplay off, so audio only appeared once at
+            # the very end, inside the final chat bubble).
+            audio_output_box = gr.Audio(label="Speech Output", show_download_button=False, autoplay=True, streaming=False, visible=True)
 
         with gr.Accordion("Parameters", open=True) as parameter_row:
             temperature = gr.Slider(minimum=0.0, maximum=1.0, value=0.0, step=0.1, interactive=True, label="Temperature",)
@@ -384,10 +389,11 @@ def build_demo(embed_mode, vocoder, cur_dir=None, concurrency_count=10):
 
 
 def build_vocoder(args):
-    global vocoder
+    global vocoder, speaker_embedding
     if args.vocoder is None:
         return None
     vocoder = UnitHIFIGAN.from_hparams(source=args.vocoder, run_opts={"device":'cuda'})
+    speaker_embedding = torch.tensor(np.load(args.speaker_embedding))
 
 
 if __name__ == "__main__":
@@ -402,6 +408,8 @@ if __name__ == "__main__":
     parser.add_argument("--moderate", action="store_true")
     parser.add_argument("--embed", action="store_true")
     parser.add_argument("--vocoder", type=str)
+    parser.add_argument("--speaker-embedding", type=str,
+        default="/scratch/asudupe/models/hifigan/sonora_2/antton.npy")
     args = parser.parse_args()
     logger.info(f"args: {args}")
 

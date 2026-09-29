@@ -13,7 +13,6 @@ SPLITS=(
 
 MODEL_PATH=HiTZ/Latxa-Llama-3.1-70B-Instruct
 DATA_PATH=/scratch/asudupe/datasets/VoiceAssistant-400K
-PROMPT_PATH=prompt.j2
 FREQUENCY_PENALTY=0.15
 TENSOR_PARALLEL_SIZE=2
 BATCH_SIZE=256
@@ -39,7 +38,6 @@ for i in "${!SPLITS[@]}"; do
     sbatch ${SLURM_ARGS} run_single_translation.slurm \
         $MODEL_PATH \
         $DATA_PATH \
-        $PROMPT_PATH \
         $FREQUENCY_PENALTY \
         $TENSOR_PARALLEL_SIZE \
         ${SPLIT[0]} \

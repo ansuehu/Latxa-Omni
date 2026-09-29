@@ -1,21 +1,19 @@
+# Translates the flat question/answer schema of gpt-omni/VoiceAssistant-400K
+# (this is the script that produced VoiceAssistant-400K_eu). For nested
+# multi-turn conversations (e.g. ICTNLP/InstructS2S-200K), see the sibling
+# translate_instructs2s.py instead -- the schemas and resume/parsing logic
+# differ enough that adapting this script in place wasn't worthwhile.
 from argparse import ArgumentParser
 import json
 import os
-from typing import List, Literal
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import GuidedDecodingParams
-from pydantic import BaseModel, RootModel
 import logging
 from datasets import load_from_disk, Audio
 import time
 import re
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO)
-class Message(BaseModel):
-    role: Literal["user", "assistant"]
-    content: str
-class Conversation(RootModel):
-    root: List[Message]
 
 examples =[
     {"role": "system",
@@ -80,7 +78,6 @@ def main(args):
         dtype=args.dtype,
         enable_prefix_caching=True,
         tensor_parallel_size=args.tensor_parallel_size,
-        download_dir="/scratch/emiranda/cache_00/",
         max_model_len=25700,
         guided_decoding_backend="outlines"
     )
@@ -144,7 +141,6 @@ def main(args):
                     "question": question,
                     "answer": answer,
                 }
-                print(output_dict)
                 try:
                     print(json.dumps(output_dict, ensure_ascii=False), file=f)
                 except UnicodeEncodeError: # Emojis raise this error
@@ -160,12 +156,6 @@ if __name__ == "__main__":
         type=str,
         default="meta-llama/Meta-Llama-3-8B-Instruct",
         help="The HF model id.",
-    )
-    parser.add_argument(
-        "--prompt_path",
-        type=str,
-        default="prompt.j2",
-        help="The prompt.",
     )
     parser.add_argument(
         "--dataset_path",
@@ -184,7 +174,12 @@ if __name__ == "__main__":
     parser.add_argument("--max_tokens", type=int, default=8192)
     parser.add_argument("--dtype", type=str, default="bfloat16")
     parser.add_argument("--dataset_start", type=int, default=0)
-    parser.add_argument("--dataset_end", type=int, default=None)
+    # No natural "translate to the end" sentinel exists for range(), and
+    # load_dataset_slice() already clips any end past len(dataset) back down
+    # to it -- so default to an effectively-unbounded value instead of None
+    # (range(start, None, 1) raises TypeError, making the script unrunnable
+    # without an explicit --dataset_end).
+    parser.add_argument("--dataset_end", type=int, default=2**31 - 1)
     parser.add_argument("--batch_size", type=int, default=10)
     parser.add_argument("--frequency_penalty", type=float, default=0.0)
     parser.add_argument("--tensor_parallel_size", type=int, default=1)

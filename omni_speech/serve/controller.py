@@ -45,7 +45,7 @@ class WorkerInfo:
     speed: int
     queue_length: int
     check_heart_beat: bool
-    last_heart_beat: str
+    last_heart_beat: float
 
 
 def heart_beat_controller(controller):
@@ -199,10 +199,11 @@ class Controller:
                 "error_code": 2,
             }
             yield json.dumps(ret).encode() + b"\0"
+            return
 
         try:
             response = requests.post(worker_addr + "/worker_generate_stream",
-                json=params, stream=True, timeout=5)
+                json=params, stream=True, timeout=(5, None))
             for chunk in response.iter_lines(decode_unicode=False, delimiter=b"\0"):
                 if chunk:
                     yield chunk + b"\0"

@@ -495,7 +495,7 @@ class GenerationWithCTC(GenerationMixin):
         unfinished_sequences = torch.ones(batch_size, dtype=torch.long, device=input_ids.device)
         model_kwargs = self._get_initial_cache_position(input_ids, model_kwargs)
 
-        generated_units = torch.tensor([])
+        emitted_unit_count = 0
         while self._has_unfinished_sequences(this_peer_finished, synced_gpus, device=input_ids.device):
             # prepare model inputs
             model_inputs = self.prepare_inputs_for_generation(input_ids, **model_kwargs)
@@ -559,10 +559,18 @@ class GenerationWithCTC(GenerationMixin):
             input_ids = torch.cat([input_ids, next_tokens[:, None]], dim=-1)
             if streamer is not None:
                 streamer.put(next_tokens.cpu())
-            if streamer_unit is not None:
-                for i in range(len(generated_units), len(cur_units)):
-                    streamer_unit.put(cur_units[i].unsqueeze(0))
-            generated_units = cur_units
+            # `ctc_postprocess` re-dedups/re-filters the *whole* sequence
+            # every step, so `cur_units` is not guaranteed to grow
+            # monotonically with each new hidden state. Track how many
+            # units have actually been emitted so far and only emit the
+            # growth, instead of re-emitting from `len(generated_units)`
+            # (which could shrink and cause already-sent units to be
+            # emitted a second time).
+            if len(cur_units) > emitted_unit_count:
+                if streamer_unit is not None:
+                    for i in range(emitted_unit_count, len(cur_units)):
+                        streamer_unit.put(cur_units[i].unsqueeze(0))
+                emitted_unit_count = len(cur_units)
             model_kwargs = self._update_model_kwargs_for_generation(
                 outputs,
                 model_kwargs,

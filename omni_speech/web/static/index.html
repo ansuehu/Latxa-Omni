@@ -116,28 +116,49 @@
             gap: 10px;
             align-items: center;
             flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+        .btn-group {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0;
         }
         .mic-button {
             background-color: #4F46E5;
             color: white;
             border: none;
-            padding: 14px 24px;
+            padding: 12px 20px;
             border-radius: 50px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.2s;
             flex-shrink: 0;
+            white-space: nowrap;
         }
         .mic-button:hover { background-color: #4338CA; }
         .mic-button.recording {
             background-color: #EF4444;
             animation: pulse 1.5s infinite;
         }
-        .mic-button:disabled {
+        .mic-button:disabled, .upload-btn:disabled {
             opacity: 0.5;
             cursor: not-allowed;
         }
+        .upload-btn {
+            background-color: white;
+            color: #4F46E5;
+            border: 2px solid #4F46E5;
+            padding: 10px 18px;
+            border-radius: 50px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            white-space: nowrap;
+        }
+        .upload-btn:hover { background-color: #eef2ff; }
         @keyframes pulse {
             0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
             50% { transform: scale(1.03); box-shadow: 0 0 0 10px rgba(239,68,68,0); }
@@ -148,6 +169,7 @@
             color: #888;
             flex: 1;
             text-align: center;
+            min-width: 80px;
         }
         .error-msg {
             align-self: center;
@@ -187,7 +209,11 @@
     <div class="chat-area" id="chatArea"></div>
 
     <div class="controls">
-        <button id="micBtn" class="mic-button">Start Microphone</button>
+        <div class="btn-group">
+            <button id="micBtn" class="mic-button">Start Microphone</button>
+            <button id="uploadBtn" class="upload-btn">Upload Audio</button>
+        </div>
+        <input type="file" id="fileInput" accept="audio/*" hidden>
         <span id="status">Ready</span>
     </div>
 </div>
@@ -208,7 +234,7 @@
         const sid = 'session_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
         localStorage.setItem(SESSION_KEY, sid);
         document.getElementById('chatArea').innerHTML = '';
-        document.getElementById('sessionLabel').textContent = '';
+        setSessionLabel();
     }
 
     function setSessionLabel() {
@@ -218,6 +244,8 @@
 
     const chatArea = document.getElementById('chatArea');
     const micBtn = document.getElementById('micBtn');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const fileInput = document.getElementById('fileInput');
     const statusText = document.getElementById('status');
 
     let mediaRecorder = null;
@@ -361,24 +389,39 @@
         }
     }
 
-    async function sendAudioToServer() {
-        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-        if (audioBlob.size === 0) {
-            statusText.textContent = 'Captured audio was empty. Try again.';
-            micBtn.classList.remove('recording');
-            micBtn.textContent = 'Start Microphone';
+    // Like stopRecording(), but abandons any in-progress recording instead
+    // of sending it. mediaRecorder.onstop is wired to sendAudioToServer, so
+    // a plain stopRecording() here would still fire that handler and send
+    // the (unwanted) recording -- clobbering whatever the caller is about
+    // to send instead (e.g. an uploaded file).
+    function discardRecording() {
+        if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+            mediaRecorder.onstop = null;
+            mediaRecorder.stop();
+            mediaRecorder.stream.getTracks().forEach(t => t.stop());
+        }
+        clearTimeout(silenceTimer);
+        if (audioContext) {
+            audioContext.close().catch(() => {});
+        }
+        micBtn.classList.remove('recording');
+        micBtn.textContent = 'Start Microphone';
+    }
+
+    async function sendAudio(blob, filename) {
+        if (blob.size === 0) {
+            statusText.textContent = 'Audio was empty. Try again.';
+            enableInputs();
             isProcessing = false;
             return;
         }
 
         isProcessing = true;
-        micBtn.disabled = true;
-        micBtn.classList.remove('recording');
-        micBtn.textContent = 'Processing...';
+        disableInputs();
         statusText.textContent = 'Thinking...';
 
         const formData = new FormData();
-        formData.append('audio', audioBlob, 'input.webm');
+        formData.append('audio', blob, filename);
         formData.append('session_id', getSessionId());
 
         try {
@@ -412,7 +455,6 @@
             }
         } catch (error) {
             statusText.textContent = 'Error: ' + error.message;
-            // Add error message to chat
             const el = document.createElement('div');
             el.className = 'error-msg';
             el.textContent = 'Error: ' + error.message;
@@ -420,10 +462,50 @@
             chatArea.scrollTop = chatArea.scrollHeight;
         }
 
-        micBtn.disabled = false;
-        micBtn.textContent = 'Start Microphone';
+        enableInputs();
         isProcessing = false;
     }
+
+    function disableInputs() {
+        micBtn.disabled = true;
+        uploadBtn.disabled = true;
+    }
+
+    function enableInputs() {
+        micBtn.disabled = false;
+        micBtn.textContent = 'Start Microphone';
+        uploadBtn.disabled = false;
+    }
+
+    async function sendAudioToServer() {
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        micBtn.classList.remove('recording');
+        await sendAudio(audioBlob, 'input.webm');
+    }
+
+    // ---------- File Upload ----------
+
+    uploadBtn.addEventListener('click', () => {
+        if (isProcessing) return;
+        discardRecording();
+        fileInput.value = '';
+        fileInput.click();
+    });
+
+    fileInput.addEventListener('change', async (e) => {
+        if (isProcessing) return;
+        const file = e.target.files[0];
+        if (!file) return;
+
+        discardRecording();
+        disableInputs();
+        uploadBtn.textContent = 'Uploading...';
+        statusText.textContent = 'Sending audio file...';
+
+        await sendAudio(file, file.name);
+
+        uploadBtn.textContent = 'Upload Audio';
+    });
 
     function detectSilence() {
         if (!analyser) return;

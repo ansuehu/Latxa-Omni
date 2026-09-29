@@ -5,6 +5,10 @@ import numpy as np
 import joblib
 from transformers import Wav2Vec2Processor, HubertModel
 import os
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 TOKEN_DIR = "/scratch/asudupe/datasets/VoiceAssistant-400K_eu/tokens"
 os.makedirs(TOKEN_DIR, exist_ok=True)
@@ -42,8 +46,15 @@ def process_example(example, model, processor, kmeans):
         )
 
         waveform, sr = torchaudio.load(audio_path)
-        if waveform.ndim > 1:
+        if waveform.shape[0] > 1:
+            # Downmix real multi-channel audio to mono. `.squeeze(0)` here
+            # was a no-op for genuine stereo (channel dim size 2) -- it only
+            # does anything when there's already just one channel.
+            waveform = waveform.mean(dim=0)
+        else:
             waveform = waveform.squeeze(0)
+        if sr != 16000:
+            waveform = torchaudio.functional.resample(waveform, sr, 16000)
 
         tokens = assign_tokens(waveform, model, processor, kmeans)
 
@@ -59,7 +70,8 @@ def process_example(example, model, processor, kmeans):
         out_path = os.path.join(out_dir, filename)
         np.save(out_path, tokens)
         example["answer_token"] = out_path
-    except:
+    except Exception as e:
+        logger.warning(f"Failed to tokenize {example.get('answer_audio')!r}: {e}")
         example["answer_token"] = 'error'
     return example
 
@@ -83,6 +95,14 @@ def main():
         batched=False,                         # process one example at a time
         desc="Extracting HuBERT tokens & saving to .npy"
     )
+
+    n_total = len(ds)
+    ds = ds.filter(lambda ex: ex["answer_token"] != "error", desc="Dropping failed examples")
+    n_dropped = n_total - len(ds)
+    if n_dropped:
+        logger.warning(f"Dropped {n_dropped}/{n_total} examples that failed tokenization "
+                        f"(see warnings above for reasons). Training code assumes "
+                        f"answer_token is always a loadable path, not the string 'error'.")
 
     ds.save_to_disk("/scratch/asudupe/datasets/VoiceAssistant-400K_eu/dataset_with_token_paths")
 

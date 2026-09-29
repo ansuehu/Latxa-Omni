@@ -28,7 +28,7 @@ import torch.optim as optim
 # from transformers import DataCollatorForSeq2Seq
 from torch.nn.utils.rnn import pad_sequence
 from transformers import Trainer, TrainingArguments, AutoTokenizer
-from omni_speech.metrics import compute_metrics
+from omni_speech.constants import IGNORE_INDEX
 from torchaudio.transforms import Resample
 from datasets import load_from_disk, load_dataset, Audio
 from scipy.signal import resample_poly
@@ -46,7 +46,9 @@ def collate_fn(batch):
         
     input_ids,labels,speech_tensors,speech_lengths = zip(*batch)
     input_ids = pad_sequence(input_ids, batch_first=True, padding_value=128009)
-    labels = pad_sequence(labels, batch_first=True, padding_value=128009)
+    # Pad labels with IGNORE_INDEX (-100), not a real token id, so padding
+    # positions don't contribute to the loss (stage2.py already does this).
+    labels = pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
 
     speech_tensors = torch.stack(speech_tensors, dim=0)
     speech_lengths = torch.stack(speech_lengths, dim=0)
@@ -226,7 +228,6 @@ def train_model(args):
         train_dataset=train_dl,
         eval_dataset=eval_dl,
         data_collator=collate_fn,
-        compute_metrics=compute_metrics
     )
     # try:
     trainer.train()

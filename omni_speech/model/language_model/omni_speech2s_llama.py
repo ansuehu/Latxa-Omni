@@ -160,7 +160,14 @@ class OmniSpeech2SLlamaForCausalLM(OmniSpeechLlamaForCausalLM, GenerationWithCTC
                 None,
                 None,
                 None,
-                None,
+                # Forward the real per-turn lengths so
+                # prepare_inputs_labels_for_speech_and_text can trim the
+                # padding pad_sequence() added when batching turns of
+                # different lengths (see model_worker.get_input_params).
+                # This used to be hardcoded to None, so every historical
+                # turn's speech embedding was passed through un-trimmed,
+                # padding included.
+                speech_lengths,
                 speech_embeds=speech_embeds
             )
         elif speech is not None:
@@ -194,10 +201,19 @@ class OmniSpeech2SLlamaForCausalLM(OmniSpeechLlamaForCausalLM, GenerationWithCTC
         )
         #odict_keys(['sequences', 'hidden_states', 'past_key_values'])
         # sequences:torch.Size([1, 52]) hidden_states:torch.Size([1, 52, 4096]) past_key_values:torch.Size([1, 52, 4096])
-        hidden_states = outputs['hidden_states']
-        hidden_states = torch.cat([hidden_states[0][-1][:, -1:, :]] + [hidden_states[i][-1] for i in range(1, len(hidden_states))], dim=1)
-        #torch.Size([1, 47, 4096])
-        ctc_pred = self.speech_generator.predict(hidden_states.squeeze(0)) #torch.Size([1, 1300])
+        if streaming_unit_gen:
+            # In streaming mode the units were already produced and pushed
+            # to `streamer_unit` incrementally inside `_sample_streaming_unit`
+            # (see generation.py). The model worker runs this `generate()`
+            # call in a background thread and never reads its return value,
+            # so recomputing a full CTC decode over the final hidden states
+            # here would just be wasted GPU time on every request.
+            ctc_pred = None
+        else:
+            hidden_states = outputs['hidden_states']
+            hidden_states = torch.cat([hidden_states[0][-1][:, -1:, :]] + [hidden_states[i][-1] for i in range(1, len(hidden_states))], dim=1)
+            #torch.Size([1, 47, 4096])
+            ctc_pred = self.speech_generator.predict(hidden_states.squeeze(0)) #torch.Size([1, 1300])
 
         return outputs.sequences, ctc_pred
 

@@ -3,10 +3,12 @@ A model worker executes the model.
 """
 import argparse
 import asyncio
+import hashlib
 import json
 import time
 import threading
 import uuid
+from collections import OrderedDict
 
 from fastapi import FastAPI, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
@@ -59,12 +61,14 @@ def load_speech(audio, input_type, mel_size, speech_normalize):
 
 def build_unit_tokenizer(vocab_size):
     import os
+    import tempfile
     from transformers import BertTokenizer
-    with open("unit_vocab.txt", "w") as f:
-        for i in range(vocab_size + 1):
-            f.write(str(i) + "\n")
-    tokenizer = BertTokenizer(vocab_file="unit_vocab.txt")
-    os.remove("unit_vocab.txt")
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        vocab_path = os.path.join(tmp_dir, "unit_vocab.txt")
+        with open(vocab_path, "w") as f:
+            for i in range(vocab_size + 1):
+                f.write(str(i) + "\n")
+        tokenizer = BertTokenizer(vocab_file=vocab_path)
     return tokenizer
 
 
@@ -222,6 +226,9 @@ def build_unit_tokenizer(vocab_size):
 #             }
 #             yield json.dumps(ret).encode() + b"\0"
 
+SPEECH_EMBED_CACHE_MAX_ENTRIES = 32
+
+
 class ModelWorker:
     def __init__(self, controller_addr, worker_addr,
                  worker_id, no_register,
@@ -234,10 +241,11 @@ class ModelWorker:
         self.model_name = model_name
         self.input_type = input_type
         self.mel_size = mel_size
+        self.s2s = s2s
         self.tokenizer, self.model, self.context_len = load_pretrained_model(
             model_path, model_base, is_lora=is_lora, s2s=s2s, load_8bit=load_8bit, load_4bit=load_4bit, device=self.device, use_flash_attn=use_flash_attn)
-        self.unit_tokenizer = build_unit_tokenizer(self.model.config.unit_vocab_size)
-        self.speech_embed_cache = {}
+        self.unit_tokenizer = build_unit_tokenizer(self.model.config.unit_vocab_size) if s2s else None
+        self.speech_embed_cache = OrderedDict()
 
         if not no_register:
             self.register_to_controller()
@@ -257,14 +265,15 @@ class ModelWorker:
         r = requests.post(url, json=data)
         assert r.status_code == 200
 
-    def send_heart_beat(self):
+    def send_heart_beat(self, max_retries=3):
         logger.info(f"Send heart beat. Models: {[self.model_name]}. "
                     f"Semaphore: {pretty_print_semaphore(model_semaphore)}. "
                     f"global_counter: {global_counter}")
 
         url = self.controller_addr + "/receive_heart_beat"
 
-        while True:
+        exist = False
+        for attempt in range(max_retries):
             try:
                 ret = requests.post(url, json={
                     "worker_name": self.worker_addr,
@@ -273,7 +282,15 @@ class ModelWorker:
                 break
             except requests.exceptions.RequestException as e:
                 logger.error(f"heart beat error: {e}")
-            time.sleep(5)
+                if attempt < max_retries - 1:
+                    time.sleep(5)
+        else:
+            # Controller stayed unreachable for every attempt. Give up
+            # instead of looping forever, which would otherwise wedge the
+            # request that triggered this heartbeat (this is called from
+            # the async /worker_generate_stream handler).
+            logger.error("Controller unreachable after max retries; skipping heartbeat.")
+            return
 
         if not exist:
             self.register_to_controller()
@@ -299,10 +316,17 @@ class ModelWorker:
         return load_speech(speech, self.input_type, self.mel_size, self.model.config.speech_normalize)
     
     def get_speech_embeddings(self, audio_path):
+        # Key the cache on file content, not the path: served audio uses
+        # freshly-generated temp filenames, so path-keying would never hit
+        # and the cache would grow forever.
+        with open(audio_path, "rb") as f:
+            cache_key = hashlib.sha1(f.read()).hexdigest()
+
         # Return cached embeddings if available
-        if audio_path in self.speech_embed_cache:
-            return self.speech_embed_cache[audio_path]
-        
+        if cache_key in self.speech_embed_cache:
+            self.speech_embed_cache.move_to_end(cache_key)
+            return self.speech_embed_cache[cache_key]
+
         # If not cached, load and process raw audio
         speech = self.load_speech_from_path(audio_path)
         speech_tensor = speech.unsqueeze(0).to(self.device, dtype=torch.float16)
@@ -311,10 +335,14 @@ class ModelWorker:
         with torch.no_grad():
             # Run the tensor through the encoder and adapter layers
             # IMPORTANT: Adapt this function call to your model's actual method
-            speech_embeds = self.model.encode_speech(speech_tensor, speech_lengths) 
-            
-        # Store in cache and return
-        self.speech_embed_cache[audio_path] = speech_embeds
+            speech_embeds = self.model.encode_speech(speech_tensor, speech_lengths)
+
+        # Store in cache and return, evicting the oldest entry once we
+        # exceed the cap so the worker's GPU memory stays bounded.
+        self.speech_embed_cache[cache_key] = speech_embeds
+        self.speech_embed_cache.move_to_end(cache_key)
+        if len(self.speech_embed_cache) > SPEECH_EMBED_CACHE_MAX_ENTRIES:
+            self.speech_embed_cache.popitem(last=False)
         return speech_embeds
 
     # def get_input_params(self, history):
@@ -435,30 +463,39 @@ class ModelWorker:
         do_sample = True if temperature > 0.001 else False
 
         streamer = TextIteratorStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True, timeout=15)
-        streamer_unit = TextIteratorStreamer(self.unit_tokenizer, skip_prompt=False, skip_special_tokens=True, timeout=15)
 
         if max_new_tokens < 1:
             yield json.dumps({"text": ori_prompt + "Exceeds max token length. Please start a new conversation, thanks.", "error_code": 0}).encode() + b"\0"
             return
 
-        thread = Thread(target=model.generate, kwargs=dict(
+        generate_kwargs = dict(
             inputs=input_ids,
             do_sample=do_sample,
             temperature=temperature,
             top_p=top_p,
             max_new_tokens=max_new_tokens,
             streamer=streamer,
-            streamer_unit=streamer_unit,
-            streaming_unit_gen=True,
             use_cache=True,
             **speech_args
-        ))
+        )
+
+        # `streamer_unit`/`streaming_unit_gen` are only accepted by the S2S
+        # model's generate() (GenerationWithCTC). The text-only model raises
+        # on unrecognized generate() kwargs, so only add these when running
+        # the S2S model.
+        streamer_unit = None
+        if self.s2s:
+            streamer_unit = TextIteratorStreamer(self.unit_tokenizer, skip_prompt=False, skip_special_tokens=True, timeout=15)
+            generate_kwargs["streamer_unit"] = streamer_unit
+            generate_kwargs["streaming_unit_gen"] = True
+
+        thread = Thread(target=model.generate, kwargs=generate_kwargs)
         thread.start()
 
         generated_text = ""
         for new_text in streamer:
             generated_text += new_text
-            generated_unit = " ".join(map(str, streamer_unit.token_cache))
+            generated_unit = " ".join(map(str, streamer_unit.token_cache)) if streamer_unit is not None else ""
             if stop_str is not None and generated_text.endswith(stop_str):
                 generated_text = generated_text[:-len(stop_str)]
             yield json.dumps({"text": generated_text, "unit": generated_unit, "error_code": 0}).encode() + b"\0"

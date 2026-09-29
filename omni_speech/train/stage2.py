@@ -103,6 +103,12 @@ class CustomDataset(Dataset):
         if last_marker_index != -1:
             list1 = input_ids[:last_marker_index]
             list2 = input_ids[last_marker_index:]
+        else:
+            # Assistant header not found in this example's tokenization
+            # (e.g. an empty/degenerate answer): mask the whole sequence
+            # instead of crashing on an unbound list1/list2.
+            list1 = input_ids
+            list2 = []
 
         labels = len(list1) * [-100] + list2
         labels = torch.tensor(labels, device=input_ids_.device, dtype=input_ids_.dtype)
@@ -191,9 +197,8 @@ def train_model(args):
         # eval_steps=100,                            # 评估步骤间隔
         learning_rate=2e-4,                         # 学习率大小
         lr_scheduler_type='cosine',                 # 学习率调度策略，LLM 训练一般都用余弦
-        bf16=True,        
-        fp16=False,   
-        half_precision_backend='cuda_amp',
+        bf16=True,
+        fp16=False,
         logging_steps=1,                           # 打印步骤间隔
         report_to='wandb',
         run_name=args.run_name,                             # 日志输出目标，不想用 wandb 可以设置为 None

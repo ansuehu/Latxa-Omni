@@ -85,6 +85,22 @@ python omni_speech/evaluate/evaluate_chatgpt_score.py
 - Tokenizer: `use_fast=False` for `load_pretrained_model`, `use_fast=True` for
   `create_model`.
 - CTC postprocess: deduplicate then filter blank (= `unit_vocab_size`, i.e. 1000).
+- Compute nodes' NVIDIA driver only supports up to **CUDA 12.8**, and the
+  system libstdc++ (Rocky 8.7) only has up to `CXXABI_1.3.11` and glibc
+  2.28. A plain `pip install vllm` grabs the newest release, whose pinned
+  torch now targets CUDA 13.x and needs `CXXABI_1.3.15+` -- it installs but
+  fails at `import vllm` (libstdc++) or at engine startup ("NVIDIA driver
+  ... too old"). Known-working pin for this cluster: `vllm==0.11.0` (pulls
+  `torch==2.8.0+cu128`, matching the driver exactly) with a
+  `manylinux1`/`manylinux_2_28` wheel tag (vLLM releases from 0.12.0 onward
+  require `manylinux_2_31`, newer than this cluster's glibc). The
+  `latxa-txat` conda env additionally needs a newer libstdc++ than the
+  system one for some of vLLM's other transitive deps (e.g. `libicui18n`):
+  `conda install -p <env> -c conda-forge libstdcxx-ng`, plus an
+  `etc/conda/activate.d/` hook exporting `LD_LIBRARY_PATH="$CONDA_PREFIX/lib:$LD_LIBRARY_PATH"`
+  so it applies automatically on `conda activate`/the `latxa-txat` shell
+  alias. See `dataset_generation/translate_latxa/translate_instructs2s.py`
+  and its SLURM scripts for a script built against this pin.
 
 ## Git-ignored paths (restore after clone)
 
